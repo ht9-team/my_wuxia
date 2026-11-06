@@ -1,0 +1,50 @@
+plugins {
+    id 'com.android.application'
+}
+
+def signingStoreFile = findProperty('android.injected.signing.store.file') ?: System.getenv('SIGNING_STORE_FILE')
+def signingStorePassword = findProperty('android.injected.signing.store.password') ?: System.getenv('SIGNING_STORE_PASSWORD')
+def signingKeyAlias = findProperty('android.injected.signing.key.alias') ?: System.getenv('SIGNING_KEY_ALIAS')
+def signingKeyPassword = findProperty('android.injected.signing.key.password') ?: System.getenv('SIGNING_KEY_PASSWORD')
+
+def refName = System.getenv('GITHUB_REF_NAME') ?: ''
+def appVersionName = refName.startsWith('v') ? refName.substring(1) : '1.0.0-dev'
+def appVersionCode = (System.getenv('GITHUB_RUN_NUMBER') ?: '1') as Integer
+
+android {
+    namespace 'com.wuxia.jianghu'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.wuxia.jianghu'
+        minSdk 21
+        targetSdk 34
+        versionCode appVersionCode
+        versionName appVersionName
+    }
+
+    signingConfigs {
+        release {
+            if (signingStoreFile) {
+                storeFile file(signingStoreFile)
+                storePassword signingStorePassword
+                keyAlias signingKeyAlias
+                keyPassword signingKeyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            if (signingStoreFile) {
+                signingConfig signingConfigs.release
+            }
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

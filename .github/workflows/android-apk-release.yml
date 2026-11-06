@@ -1,0 +1,107 @@
+name: Android APK Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-release-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Restore signing keystore
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/signing"
+          printf '%s' '${{ secrets.KEY_JKS }}' | base64 -d > "$RUNNER_TEMP/signing/release.jks"
+          test -s "$RUNNER_TEMP/signing/release.jks"
+
+      - name: Build signed release APK
+        shell: bash
+        env:
+          GRADLE_TASK: assembleRelease
+          SIGNING_STORE_FILE: ${{ runner.temp }}/signing/release.jks
+          SIGNING_KEY_ALIAS: ${{ vars.ALIAS || secrets.ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${SIGNING_KEY_ALIAS:-}" ]]; then
+            echo "ALIAS is missing. Configure vars.ALIAS or secrets.ALIAS." >&2
+            exit 1
+          fi
+
+          if [[ -x ./gradlew ]]; then
+            GRADLE_CMD=(./gradlew)
+          else
+            echo "No ./gradlew found; downloading Gradle 8.7 for CI fallback."
+            curl -fsSL -o "$RUNNER_TEMP/gradle.zip" https://services.gradle.org/distributions/gradle-8.7-bin.zip
+            unzip -q "$RUNNER_TEMP/gradle.zip" -d "$RUNNER_TEMP"
+            GRADLE_CMD=("$RUNNER_TEMP/gradle-8.7/bin/gradle")
+          fi
+
+          "${GRADLE_CMD[@]}" --no-daemon "$GRADLE_TASK" \
+            -Pandroid.injected.signing.store.file="$SIGNING_STORE_FILE" \
+            -Pandroid.injected.signing.store.password="$SIGNING_STORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$SIGNING_KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$SIGNING_KEY_PASSWORD"
+
+      - name: Collect APK artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          project_name="${GITHUB_REPOSITORY##*/}"
+          apk_count=0
+          while IFS= read -r apk; do
+            apk_count=$((apk_count + 1))
+            if [[ "$apk_count" -eq 1 ]]; then
+              target="dist/${project_name}.apk"
+            else
+              target="dist/${project_name}-${apk_count}.apk"
+            fi
+            cp "$apk" "$target"
+          done < <(find . -path '*/build/outputs/apk/release/*.apk' -type f | sort)
+          test "$apk_count" -gt 0
+          ls -lah dist
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: dist/*.apk
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.apk
