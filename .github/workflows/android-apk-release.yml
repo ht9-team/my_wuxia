@@ -57,8 +57,8 @@ jobs:
           # 只输出不含机密内容的诊断信息：长度、非 base64 字符数、原始数据类型
           bad="$(LC_ALL=C tr -d 'A-Za-z0-9+/=_\r\n\t -' < "$raw" | wc -c)"
           echo "KEY_JKS length=$(wc -c < "$raw") non-base64-chars=$bad raw-type=$(file -b "$raw" | cut -c1-40)"
-          # 兼容带换行/空格/CRLF、URL-safe 字符或缺少 padding 的 base64
-          clean="$(LC_ALL=C tr -d ' \r\n\t' < "$raw" | tr '_-' '/+')"
+          # 兼容 UTF-8 BOM、换行/空格/CRLF、URL-safe 字符或缺少 padding 的 base64
+          clean="$(LC_ALL=C sed -e '1s/^\xEF\xBB\xBF//' "$raw" | LC_ALL=C tr -d ' \r\n\t' | tr '_-' '/+')"
           while (( ${#clean} % 4 != 0 )); do clean="${clean}="; done
           if ! printf '%s' "$clean" | base64 -d > "$out" 2>/dev/null; then
             printf '%s' "$clean" | base64 -d -i > "$out" || true
@@ -81,6 +81,12 @@ jobs:
           SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
         run: |
           set -euo pipefail
+          # 组织级签名配置在 Windows 下写入，带有 UTF-8 BOM 与 CR/LF，这里统一去掉
+          strip() { printf '%s' "$1" | LC_ALL=C sed -e '1s/^\xEF\xBB\xBF//' | LC_ALL=C tr -d '\r\n'; }
+          SIGNING_KEY_ALIAS="$(strip "${SIGNING_KEY_ALIAS:-}")"
+          SIGNING_KEY_PASSWORD="$(strip "${SIGNING_KEY_PASSWORD:-}")"
+          SIGNING_STORE_PASSWORD="$(strip "${SIGNING_STORE_PASSWORD:-}")"
+          export SIGNING_KEY_ALIAS SIGNING_KEY_PASSWORD SIGNING_STORE_PASSWORD
           if [[ -z "${SIGNING_KEY_ALIAS:-}" ]]; then
             echo "ALIAS is missing. Configure vars.ALIAS or secrets.ALIAS." >&2
             exit 1
