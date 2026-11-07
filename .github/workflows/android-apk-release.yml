@@ -42,10 +42,16 @@ jobs:
 
       - name: Restore signing keystore
         shell: bash
+        env:
+          KEY_JKS: ${{ secrets.KEY_JKS }}
         run: |
           set -euo pipefail
+          if [[ -z "${KEY_JKS:-}" ]]; then
+            echo "KEY_JKS is empty: the repo cannot read the signing secret (private repo on a free org needs repo-level secrets)." >&2
+            exit 1
+          fi
           mkdir -p "$RUNNER_TEMP/signing"
-          printf '%s' '${{ secrets.KEY_JKS }}' | base64 -d > "$RUNNER_TEMP/signing/release.jks"
+          printf '%s' "$KEY_JKS" | base64 -d > "$RUNNER_TEMP/signing/release.jks"
           test -s "$RUNNER_TEMP/signing/release.jks"
 
       - name: Build signed release APK
