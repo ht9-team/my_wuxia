@@ -52,13 +52,23 @@ jobs:
           fi
           mkdir -p "$RUNNER_TEMP/signing"
           out="$RUNNER_TEMP/signing/release.jks"
+          raw="$RUNNER_TEMP/signing/raw.bin"
+          printf '%s' "$KEY_JKS" > "$raw"
+          # 只输出不含机密内容的诊断信息：长度、非 base64 字符数、原始数据类型
+          bad="$(LC_ALL=C tr -d 'A-Za-z0-9+/=_\r\n\t -' < "$raw" | wc -c)"
+          echo "KEY_JKS length=$(wc -c < "$raw") non-base64-chars=$bad raw-type=$(file -b "$raw" | cut -c1-40)"
           # 兼容带换行/空格/CRLF、URL-safe 字符或缺少 padding 的 base64
-          clean="$(printf '%s' "$KEY_JKS" | tr -d ' \r\n\t' | tr '_-' '/+')"
+          clean="$(LC_ALL=C tr -d ' \r\n\t' < "$raw" | tr '_-' '/+')"
           while (( ${#clean} % 4 != 0 )); do clean="${clean}="; done
           if ! printf '%s' "$clean" | base64 -d > "$out" 2>/dev/null; then
-            printf '%s' "$clean" | base64 -d -i > "$out"
+            printf '%s' "$clean" | base64 -d -i > "$out" || true
           fi
-          echo "keystore bytes: $(wc -c < "$out")"
+          # 若解码结果本身仍是 base64 文本（被编码了两次），再解一次
+          if [[ -s "$out" ]] && ! LC_ALL=C grep -q '[^A-Za-z0-9+/=[:space:]]' "$out"; then
+            LC_ALL=C tr -d ' \r\n\t' < "$out" | base64 -d > "$out.2" && mv "$out.2" "$out"
+          fi
+          rm -f "$raw"
+          echo "keystore bytes: $(wc -c < "$out") type=$(file -b "$out" | cut -c1-40)"
           test -s "$out"
 
       - name: Build signed release APK
