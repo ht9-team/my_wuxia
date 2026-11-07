@@ -54,6 +54,8 @@ public class BattleScene extends Scene {
     private String resultText = "";
     private Runnable afterResult;
     private boolean stageDone = false;
+    private final boolean allyXiao;
+    private final boolean allySu;
 
     private float fieldTop;
     private float logTop;
@@ -89,6 +91,15 @@ public class BattleScene extends Scene {
         this.emax = e.hp;
         this.ehp = e.hp;
         addLog((e.boss ? "首领 " : "") + e.name + " 拦住了你的去路！");
+        Player pl = game.player;
+        allyXiao = kind == KIND_STORY && e.id == 31 && pl.has("xiao_knows") && pl.affXiao >= 30;
+        allySu = kind == KIND_STORY && (e.id == 31 || e.id == 32) && pl.has("saved_su") && pl.affSu >= 40;
+        if (allyXiao) {
+            addLog("萧寒拔剑而出，与你并肩而立！");
+        }
+        if (allySu) {
+            addLog("苏晚晴短剑出鞘，守在你的身侧！");
+        }
         if (e.boss) {
             game.audio.sfx(Audio.SFX_GONG);
         }
@@ -552,6 +563,10 @@ public class BattleScene extends Scene {
                 addLog(msg);
             }
         }
+        if (p.hp > 0 && allyActions()) {
+            schedule(0.9f, this::win);
+            return;
+        }
         if (playerPoison > 0 && p.hp > 0) {
             int pd = Math.max(3, p.maxHp() * 5 / 100);
             p.hp = Math.max(0, p.hp - pd);
@@ -569,6 +584,33 @@ public class BattleScene extends Scene {
         } else {
             schedule(0.7f, this::startPlayerTurn);
         }
+    }
+
+    /** 同伴助战：返回敌人是否因此倒下。 */
+    private boolean allyActions() {
+        Player p = game.player;
+        if (allyXiao && ehp > 0) {
+            boolean crit = game.rnd.nextFloat() < 0.12f;
+            int d = calc(30 + p.level * 5, e.def, 1.3f, crit);
+            ehp = Math.max(0, ehp - d);
+            enemyShake = 0.3f;
+            floats.add(new FloatText("萧寒 -" + d, enemyX() - 40, enemyY() - 90, UI.BLUE, 38, 0.35f));
+            addLog("萧寒一招「流云剑」，刺中对方，造成 " + d + " 点伤害。");
+        }
+        if (allySu && ehp > 0) {
+            if (p.hp < p.maxHp() / 2) {
+                int h = Math.max(1, p.maxHp() * 12 / 100);
+                p.heal(h);
+                floats.add(new FloatText("晚晴 +" + h, heroX(), heroY() - 120, UI.JADE, 36, 0.5f));
+                addLog("苏晚晴喂你服下一粒药丸，回复 " + h + " 点气血。");
+            } else {
+                int d = calc(25 + p.level * 4, e.def, 1.1f, false);
+                ehp = Math.max(0, ehp - d);
+                floats.add(new FloatText("晚晴 -" + d, enemyX() + 40, enemyY() - 60, 0xFFC86A9A, 36, 0.5f));
+                addLog("苏晚晴短剑翻飞，造成 " + d + " 点伤害。");
+            }
+        }
+        return ehp <= 0;
     }
 
     private void win() {
@@ -614,6 +656,19 @@ public class BattleScene extends Scene {
             Story.Stage st = Story.current(p);
             if (!stageDone && st.type == Story.T_KILL && st.target == e.id && p.location == st.loc) {
                 sb.append("\n任务进度 ").append(p.progress).append("/").append(st.count);
+            }
+        }
+        if (kind != KIND_STORY) {
+            ArrayList<String> bountyUps = new ArrayList<>();
+            String bm = p.onBountyKill(e.id, bountyUps);
+            if (bm != null) {
+                sb.append("\n").append(bm);
+                for (String s : bountyUps) {
+                    sb.append("\n").append(s);
+                }
+                if (!bountyUps.isEmpty()) {
+                    ups = bountyUps;
+                }
             }
         }
         resultText = sb.toString();
@@ -722,6 +777,12 @@ public class BattleScene extends Scene {
         }
         if (playerPoison > 0) {
             c.drawCircle(heroX(), heroY() + 20, 120, UI.fill(0x223F6B2F));
+        }
+        if (allyXiao) {
+            Sprites.hero(c, heroX() - 110, heroY() + 40, 0.62f, 0xFFD8DEE6, 0xFF2F5A8A, 1, game.time + 0.8f, GameData.W_SWORD, false);
+        }
+        if (allySu) {
+            Sprites.hero(c, heroX() + 120, heroY() + 50, 0.62f, 0xFF6B3E7A, 0xFFE8B0C8, 1, game.time + 1.6f, GameData.W_SWORD, true);
         }
         Sprites.hero(c, heroX() + shakeH + lungeH, heroY() - lungeH * 0.6f, 0.95f, robe, UI.PAPER_LIGHT, 1, game.time,
                 p.drawWeapon(), false);

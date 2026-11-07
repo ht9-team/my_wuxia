@@ -35,6 +35,14 @@ public class Player {
     public int kills = 0;
     public boolean finished = false;
     public int ending = -1;
+    /** 悬赏任务：目标敌人（-1 表示没有）、地点、数量、进度与奖励。 */
+    public int bountyEnemy = -1;
+    public int bountyLoc = -1;
+    public int bountyCount = 0;
+    public int bountyProgress = 0;
+    public int bountySilver = 0;
+    public int bountyExp = 0;
+    public int bountiesDone = 0;
     public final int[] items = new int[GameData.ITEMS.length];
     public final int[] enhance = new int[GameData.ITEMS.length];
     public final int[] explore = new int[GameData.LOCATIONS.length];
@@ -247,6 +255,37 @@ public class Player {
         }
     }
 
+    public boolean hasBounty() {
+        return bountyEnemy >= 0;
+    }
+
+    public String bountyText() {
+        if (!hasBounty()) {
+            return "暂无悬赏";
+        }
+        return "击败" + GameData.ENEMIES[bountyEnemy].name + " " + bountyProgress + "/" + bountyCount
+                + " · " + GameData.LOCATIONS[bountyLoc].name;
+    }
+
+    /** 记录悬赏击杀；完成时发放奖励并返回提示文本，否则返回进度文本或 null。 */
+    public String onBountyKill(int enemyId, List<String> levelUps) {
+        if (!hasBounty() || enemyId != bountyEnemy || location != bountyLoc) {
+            return null;
+        }
+        bountyProgress++;
+        if (bountyProgress < bountyCount) {
+            return "悬赏进度 " + bountyProgress + "/" + bountyCount;
+        }
+        silver += bountySilver;
+        levelUps.addAll(gainExp(bountyExp));
+        String msg = "悬赏完成！赏银 +" + bountySilver + "  修为 +" + bountyExp;
+        log("完成悬赏：击败" + GameData.ENEMIES[bountyEnemy].name + "×" + bountyCount);
+        bountiesDone++;
+        bountyEnemy = -1;
+        bountyProgress = 0;
+        return msg;
+    }
+
     public int itemCount() {
         int n = 0;
         for (int i = 0; i < items.length; i++) {
@@ -305,6 +344,13 @@ public class Player {
         o.put("kills", kills);
         o.put("finished", finished);
         o.put("ending", ending);
+        o.put("bountyEnemy", bountyEnemy);
+        o.put("bountyLoc", bountyLoc);
+        o.put("bountyCount", bountyCount);
+        o.put("bountyProgress", bountyProgress);
+        o.put("bountySilver", bountySilver);
+        o.put("bountyExp", bountyExp);
+        o.put("bountiesDone", bountiesDone);
         o.put("items", intArray(items));
         o.put("enhance", intArray(enhance));
         o.put("explore", intArray(explore));
@@ -406,6 +452,16 @@ public class Player {
             p.affSu = o.optInt("affSu", 0);
             p.affXiao = o.optInt("affXiao", 0);
             p.ending = o.optInt("ending", -1);
+            p.bountyEnemy = o.optInt("bountyEnemy", -1);
+            p.bountyLoc = o.optInt("bountyLoc", -1);
+            p.bountyCount = o.optInt("bountyCount", 0);
+            p.bountyProgress = o.optInt("bountyProgress", 0);
+            p.bountySilver = o.optInt("bountySilver", 0);
+            p.bountyExp = o.optInt("bountyExp", 0);
+            p.bountiesDone = o.optInt("bountiesDone", 0);
+            if (p.bountyEnemy >= GameData.ENEMIES.length || p.bountyLoc < 0 || p.bountyLoc >= GameData.LOCATIONS.length) {
+                p.bountyEnemy = -1;
+            }
             readInts(o.optJSONArray("enhance"), p.enhance);
             readInts(o.optJSONArray("explore"), p.explore);
             JSONArray fl = o.optJSONArray("flags");

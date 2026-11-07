@@ -19,9 +19,6 @@ public class LocationScene extends Scene {
         return GameData.LOCATIONS[game.player.location];
     }
 
-    private int innPrice() {
-        return 5 + game.player.level * 3;
-    }
 
     @Override
     public int music() {
@@ -45,8 +42,8 @@ public class LocationScene extends Scene {
         float r2 = r1 + BH + GAP;
         float r3 = r2 + BH + GAP;
         if (l.town) {
-            Button inn = addButton(xL, y0, bw, BH, "客栈歇息", this::rest);
-            inn.sub = innPrice() + " 两 · 恢复全部";
+            Button inn = addButton(xL, y0, bw, BH, "客栈", () -> game.setScene(new InnScene(game)));
+            inn.sub = p.hasBounty() ? "悬赏 " + p.bountyProgress + "/" + p.bountyCount : "住店 · 悬赏 · 打听";
             addButton(xR, y0, bw, BH, "集市商铺", () -> game.setScene(new ShopScene(game))).sub = "丹药 · 兵器 · 护甲";
             addButton(xL, r1, bw, BH, "铁匠铺", () -> game.setScene(new SmithScene(game))).sub = "强化兵甲";
             addButton(xR, r1, bw, BH, "拜师学艺", () -> game.setScene(new SkillScene(game, true))).sub =
@@ -91,21 +88,6 @@ public class LocationScene extends Scene {
         sys.color = UI.INK_LIGHT;
     }
 
-    private void rest() {
-        Player p = game.player;
-        if (p.silver < innPrice()) {
-            game.toast("银两不足，掌柜把你赶了出来");
-            game.audio.sfx(Audio.SFX_FAIL);
-            return;
-        }
-        p.silver -= innPrice();
-        p.fullRestore();
-        p.day++;
-        log = "你在客栈要了一间上房，美美睡了一觉。气血与内力尽数恢复。";
-        game.audio.sfx(Audio.SFX_HEAL);
-        game.save();
-        layout();
-    }
 
     private void meditate() {
         Player p = game.player;

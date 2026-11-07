@@ -173,6 +173,8 @@ public final class Sprites {
                     w = GameData.W_SWORD;
                     break;
                 case "说书人":
+                case "店小二":
+                case "书生":
                     robe = 0xFF7A5A3A;
                     sash = UI.GOLD;
                     break;

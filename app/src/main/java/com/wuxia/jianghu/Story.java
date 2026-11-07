@@ -1026,7 +1026,7 @@ public final class Story {
     }
 
     public static Ev randomEvent(Game g) {
-        switch (g.rnd.nextInt(8)) {
+        switch (g.rnd.nextInt(11)) {
             case 0:
                 return evBully(g);
             case 1:
@@ -1041,6 +1041,12 @@ public final class Story {
                 return evStoryteller(g);
             case 6:
                 return evFakeAlliance(g);
+            case 7:
+                return evMasterLetter(g);
+            case 8:
+                return evAmbush(g);
+            case 9:
+                return evScholar(g);
             default:
                 return evFriend(g);
         }
@@ -1287,5 +1293,117 @@ public final class Story {
                     });
         }
         return evBully(g);
+    }
+
+    // ================= 客栈打听 =================
+
+    public static Ev tavern(Game g) {
+        final Player p = g.player;
+        String tip;
+        Stage s = current(p);
+        switch (s.type) {
+            case T_KILL:
+            case T_BOSS:
+                tip = "客官要去" + GameData.LOCATIONS[s.loc].name + "？那地方不太平，得一层一层往里摸，摸到最深处才见得着正主儿。";
+                break;
+            case T_VISIT:
+                tip = "听说" + GameData.LOCATIONS[s.loc].name + "最近热闹得很，各路人马都往那边赶呢。";
+                break;
+            case T_FINAL:
+                tip = "黑木崖？客官，那可是龙潭虎穴。崖上崖下全是天魔教的人，没有九花玉露丸傍身，小的劝您别去。";
+                break;
+            default:
+                tip = "东海蓬莱仙岛，据说岛上的剑仙三十年没出过手了。上一个去挑战的，连剑都没拔出来。";
+                break;
+        }
+        return new Ev("客栈 · 打听消息")
+                .say("店小二", "（压低声音）客官，您打听的事儿，小的还真知道一些……")
+                .say("店小二", tip)
+                .say("店小二", rumor(g))
+                .then(() -> {
+                    p.log("在客栈打听到一些江湖消息");
+                    g.setScene(new InnScene(g));
+                });
+    }
+
+    // ================= 更多江湖奇遇 =================
+
+    private static Ev evMasterLetter(Game g) {
+        final Player p = g.player;
+        final String key = "letter_" + p.stage;
+        if (p.has(key)) {
+            return evBully(g);
+        }
+        final int item = p.level >= 10 ? 36 : (p.level >= 5 ? 2 : 0);
+        final int n = p.level >= 10 ? 1 : 2;
+        String sect = GameData.SECTS[p.sect].name;
+        String advice;
+        if (p.justice >= 20) {
+            advice = "近来江湖上常有人提起你的侠名，为师甚慰。";
+        } else if (p.justice <= -20) {
+            advice = "近来听闻你行事乖张，为师寝食难安。望你莫忘下山时的誓言。";
+        } else {
+            advice = "江湖险恶，凡事三思而后行。";
+        }
+        return new Ev("江湖偶遇 · 师门来信")
+                .narr("一名" + sect + "的小师弟风尘仆仆地找到了你，递上一封师父的亲笔信和一个包裹。")
+                .say("师父", "（信中）" + p.name + "，见字如面。" + advice)
+                .say("师父", "（信中）随信附上几样药物，望你保重身体。为师在山上，等你回来。")
+                .then(() -> {
+                    p.set(key);
+                    p.items[item] += n;
+                    g.toast("获得：" + GameData.ITEMS[item].name + " ×" + n);
+                    p.log("收到师父的来信");
+                    toLocation(g);
+                });
+    }
+
+    private static Ev evAmbush(Game g) {
+        final Player p = g.player;
+        if (evidence(p) == 0 || p.stage < S_HUASHAN || p.finished) {
+            return evCaravan(g);
+        }
+        final int foe = locEnemy(g);
+        return new Ev("江湖偶遇 · 夜半杀机").bgm(Audio.BGM_BATTLE)
+                .narr("夜宿荒庙，你忽然惊醒——窗纸上映出几道黑影，刀光一闪，直取你的咽喉！")
+                .narr("来人黑巾蒙面，出手狠辣，招招都冲着你怀中的证物而来。")
+                .choice("拔剑迎敌", "与蒙面杀手交手", true, () -> wildFight(g, foe, () -> show(g, new Ev("江湖偶遇 · 夜半杀机")
+                        .narr("杀手倒地，你从他怀中搜出一块令牌——青铜所铸，刻着一柄小小的青锋剑。")
+                        .me("武林盟的人……看来，有人已经坐不住了。")
+                        .then(() -> {
+                            p.justice += 1;
+                            p.log("夜宿荒庙遭蒙面杀手伏击，杀手身上带着青锋令牌");
+                            toLocation(g);
+                        }))))
+                .choice("破窗而逃", "保住证物要紧", true, () -> {
+                    p.day++;
+                    g.toast("你连夜奔逃了数十里，总算甩掉了追兵");
+                    toLocation(g);
+                });
+    }
+
+    private static Ev evScholar(Game g) {
+        final Player p = g.player;
+        return new Ev("江湖偶遇 · 落难书生")
+                .narr("一个书生坐在路边垂泪。原来他进京赶考，盘缠却在半路被人抢了个精光。")
+                .say("书生", "十年寒窗，眼看就要……唉，这位侠士，您说读书人的命，怎么就这么苦？")
+                .choice("赠他三十两盘缠", "侠义 +3", p.silver >= 30, () -> {
+                    p.silver -= 30;
+                    p.justice += 3;
+                    g.toast("书生千恩万谢，说若高中定当报答。侠义 +3");
+                    p.set("helped_scholar");
+                    p.log("资助了一位进京赶考的书生");
+                    toLocation(g);
+                })
+                .choice("教他几招防身功夫", "耗时一日，修为小增", true, () -> {
+                    p.day++;
+                    int e = 8 + p.level * 3;
+                    for (String m : p.gainExp(e)) {
+                        g.toast(m);
+                    }
+                    g.toast("教学相长，修为 +" + e);
+                    toLocation(g);
+                })
+                .choice("爱莫能助", null, true, () -> toLocation(g));
     }
 }

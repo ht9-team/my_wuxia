@@ -117,6 +117,7 @@ public class JournalScene extends Scene {
         RectF r3 = new RectF(30, 756, W() - 30, H() - 146);
         UI.panel(c, r3);
         UI.text(c, "江湖纪事", 56, 796, 26, UI.INK);
+        UI.text(c, "悬赏：" + p.bountyText(), W() - 56, 796, 22, UI.RED, Paint.Align.RIGHT);
         int lines = Math.max(1, (int) ((r3.bottom - 830) / 36));
         int start = Math.max(0, p.journal.size() - lines);
         float jy = 836;
