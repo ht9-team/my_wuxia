@@ -51,8 +51,15 @@ jobs:
             exit 1
           fi
           mkdir -p "$RUNNER_TEMP/signing"
-          printf '%s' "$KEY_JKS" | base64 -d > "$RUNNER_TEMP/signing/release.jks"
-          test -s "$RUNNER_TEMP/signing/release.jks"
+          out="$RUNNER_TEMP/signing/release.jks"
+          # 兼容带换行/空格/CRLF、URL-safe 字符或缺少 padding 的 base64
+          clean="$(printf '%s' "$KEY_JKS" | tr -d ' \r\n\t' | tr '_-' '/+')"
+          while (( ${#clean} % 4 != 0 )); do clean="${clean}="; done
+          if ! printf '%s' "$clean" | base64 -d > "$out" 2>/dev/null; then
+            printf '%s' "$clean" | base64 -d -i > "$out"
+          fi
+          echo "keystore bytes: $(wc -c < "$out")"
+          test -s "$out"
 
       - name: Build signed release APK
         shell: bash
