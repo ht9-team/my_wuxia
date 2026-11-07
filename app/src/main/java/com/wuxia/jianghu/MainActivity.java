@@ -1,6 +1,7 @@
 package com.wuxia.jianghu;
 
 import android.app.Activity;
+import android.media.AudioManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
@@ -16,6 +17,7 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        setVolumeControlStream(AudioManager.STREAM_MUSIC);
         game = new Game(this);
         view = new GameView(this, game);
         setContentView(view);
@@ -44,9 +46,22 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        game.audio.resume();
+    }
+
+    @Override
     protected void onPause() {
         super.onPause();
         game.save();
+        game.audio.pause();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        game.audio.release();
     }
 
     @SuppressWarnings("deprecation")

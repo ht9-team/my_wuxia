@@ -6,12 +6,19 @@ import android.graphics.RectF;
 
 /** 创建角色：随机姓名 + 选择门派。 */
 public class CreateScene extends Scene {
+    private final int slot;
     private String name;
     private int sect = 0;
 
-    public CreateScene(Game game) {
+    public CreateScene(Game game, int slot) {
         super(game);
+        this.slot = slot;
         rollName();
+    }
+
+    @Override
+    public int music() {
+        return Audio.BGM_TITLE;
     }
 
     private void rollName() {
@@ -38,24 +45,21 @@ public class CreateScene extends Scene {
                 buttons.get(idx + 1).selected = true;
             });
             GameData.Sect s = GameData.SECTS[i];
-            b.sub = "初始武学：" + GameData.SKILLS[s.startSkill].name;
+            b.sub = GameData.SKILLS[s.startSkill].name + " · " + GameData.ITEMS[s.startWeapon].name;
             b.color = s.color;
             b.selected = i == sect;
         }
         float by = H() - 170;
-        addButton(36, by, 200, 100, "返回", () -> game.setScene(new TitleScene(game)));
+        addButton(36, by, 200, 100, "返回", () -> game.setScene(new SlotScene(game, true)));
         addButton(260, by, W() - 296, 100, "踏入江湖", this::start).color = UI.RED;
     }
 
     private void start() {
-        game.deleteSave();
+        game.deleteSave(slot);
+        game.slot = slot;
         game.player = Player.create(name, sect);
         game.save();
-        game.setScene(new StoryScene(game, "序章 · 初入江湖",
-                name + "，你自幼拜入" + GameData.SECTS[sect].name + "门下，苦练十年，今日奉师命下山历练。\n\n"
-                        + "师父临行前叮嘱：「如今天魔教势大，江湖风波不息。你此去当行侠仗义，莫堕了本门威名。」\n\n"
-                        + "你背起行囊，来到了江南临安城……",
-                () -> game.goLocation(0)));
+        Story.play(game, "intro");
     }
 
     @Override
@@ -85,7 +89,7 @@ public class CreateScene extends Scene {
 
     @Override
     public boolean onBack() {
-        game.setScene(new TitleScene(game));
+        game.setScene(new SlotScene(game, true));
         return true;
     }
 }

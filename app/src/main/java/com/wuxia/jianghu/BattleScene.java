@@ -7,8 +7,12 @@ import android.graphics.RectF;
 import java.util.ArrayList;
 import java.util.List;
 
-/** 回合制战斗。 */
+/** 回合制战斗：兵器特效、武功相合、中毒、首领暴怒。 */
 public class BattleScene extends Scene {
+    public static final int KIND_WILD = 0;
+    public static final int KIND_BOSS = 1;
+    public static final int KIND_STORY = 2;
+
     private static final int ST_PLAYER = 0;
     private static final int ST_BUSY = 1;
     private static final int ST_WIN = 2;
@@ -19,12 +23,21 @@ public class BattleScene extends Scene {
     private static final int MODE_ITEM = 2;
 
     private final GameData.Enemy e;
+    private final int kind;
+    private final Runnable onWin;
+    private final Runnable onLose;
+    private final int emax;
     private int ehp;
+    private float eatkMul = 1f;
+    private boolean enraged = false;
     private boolean enemyStunned = false;
+    private int enemyPoison = 0;
     private int guardTurns = 0;
     private int dodgeTurns = 0;
+    private int playerPoison = 0;
     private int state = ST_BUSY;
     private int mode = MODE_MAIN;
+    private int page = 0;
     private float wait = 0f;
     private Runnable next;
     private final ArrayList<String> log = new ArrayList<>();
@@ -40,6 +53,7 @@ public class BattleScene extends Scene {
     private float enemyFade = 1f;
     private String resultText = "";
     private Runnable afterResult;
+    private boolean stageDone = false;
 
     private float fieldTop;
     private float logTop;
@@ -66,18 +80,34 @@ public class BattleScene extends Scene {
         }
     }
 
-    public BattleScene(Game game, int enemyId) {
+    public BattleScene(Game game, int enemyId, int kind, Runnable onWin, Runnable onLose) {
         super(game);
-        e = GameData.ENEMIES[enemyId];
-        ehp = e.hp;
+        this.e = GameData.ENEMIES[enemyId];
+        this.kind = kind;
+        this.onWin = onWin;
+        this.onLose = onLose;
+        this.emax = e.hp;
+        this.ehp = e.hp;
         addLog((e.boss ? "首领 " : "") + e.name + " 拦住了你的去路！");
-        boolean enemyFirst = e.agi > game.player.agi() + 6 && !e.boss;
+        if (e.boss) {
+            game.audio.sfx(Audio.SFX_GONG);
+        }
+        boolean enemyFirst = !e.boss && e.agi > game.player.agi() + 6;
         if (enemyFirst) {
             addLog(e.name + " 身法极快，抢先出手！");
             schedule(0.9f, this::enemyTurn);
         } else {
             schedule(0.6f, this::startPlayerTurn);
         }
+    }
+
+    public BattleScene(Game game, int enemyId, int kind) {
+        this(game, enemyId, kind, null, null);
+    }
+
+    @Override
+    public int music() {
+        return e.boss ? Audio.BGM_BOSS : Audio.BGM_BATTLE;
     }
 
     private void schedule(float t, Runnable r) {
@@ -120,9 +150,17 @@ public class BattleScene extends Scene {
         if (state == ST_PLAYER) {
             buildMenu();
         } else if (state == ST_WIN || state == ST_LOSE) {
-            Button b = addButton(36, H() - 150, W() - 72, 110, state == ST_WIN ? "收功离去" : "回城疗伤", () -> afterResult.run());
+            Button b = addButton(36, H() - 150, W() - 72, 110, state == ST_WIN ? "收功离去" : "败走", () -> afterResult.run());
             b.color = state == ST_WIN ? UI.JADE : UI.RED;
         }
+    }
+
+    private float slotX(int i, float bw, float gap) {
+        return 36 + (i % 2) * (bw + gap);
+    }
+
+    private float slotY(int i, float gap) {
+        return buttonTop + (i / 2) * (96 + gap);
     }
 
     private void buildMenu() {
@@ -134,10 +172,12 @@ public class BattleScene extends Scene {
             float bh = 150;
             float y = H() - 36 - bh * 2 - gap;
             Button a = addButton(36, y, bw, bh, "攻击", this::playerAttack);
-            a.sub = "普通一击，回复内力";
+            String sp = GameData.SPECIAL_NAMES[p.weaponSpecial()];
+            a.sub = sp.isEmpty() ? "普通一击，回复内力" : "普通一击 · " + sp;
             a.textSize = 44;
             Button s = addButton(36 + bw + gap, y, bw, bh, "武功", () -> {
                 mode = MODE_SKILL;
+                page = 0;
                 buildMenu();
             });
             s.sub = "施展武学";
@@ -145,62 +185,67 @@ public class BattleScene extends Scene {
             s.color = UI.RED;
             Button it = addButton(36, y + bh + gap, bw, bh, "物品", () -> {
                 mode = MODE_ITEM;
+                page = 0;
                 buildMenu();
             });
             it.sub = "丹药 " + p.itemCount() + " 份";
             it.textSize = 44;
             it.color = UI.JADE;
+            boolean canFlee = kind == KIND_WILD && !e.boss;
             Button f = addButton(36 + bw + gap, y + bh + gap, bw, bh, "逃跑", this::flee);
-            f.sub = e.boss ? "首领战无法脱身" : "三十六计走为上";
+            f.sub = canFlee ? "三十六计走为上" : "此战无法脱身";
             f.textSize = 44;
             f.color = UI.INK_LIGHT;
-            f.enabled = !e.boss;
-        } else if (mode == MODE_SKILL) {
-            List<Integer> list = p.skills;
-            int i = 0;
-            for (int id : list) {
-                if (i >= 7) {
-                    break;
+            f.enabled = canFlee;
+            return;
+        }
+        ArrayList<Integer> ids = new ArrayList<>();
+        if (mode == MODE_SKILL) {
+            ids.addAll(p.skills);
+        } else {
+            for (int id = 0; id < p.items.length; id++) {
+                if (GameData.ITEMS[id].consumable() && p.items[id] > 0) {
+                    ids.add(id);
                 }
+            }
+        }
+        int per = ids.size() > 7 ? 6 : 7;
+        int pageCount = pages(ids.size(), per);
+        if (page >= pageCount) {
+            page = 0;
+        }
+        int i = 0;
+        for (int k = page * per; k < Math.min(ids.size(), page * per + per); k++) {
+            final int id = ids.get(k);
+            Button b;
+            if (mode == MODE_SKILL) {
                 final GameData.Skill sk = GameData.SKILLS[id];
-                float x = 36 + (i % 2) * (bw + gap);
-                float y = buttonTop + (i / 2) * (96 + gap);
-                Button b = addButton(x, y, bw, 96, sk.name + " " + p.skillLevel(id) + "重", () -> useSkill(sk));
-                b.textSize = 30;
-                b.sub = "内力 " + sk.mp + " · " + typeName(sk.type);
+                b = addButton(slotX(i, bw, gap), slotY(i, gap), bw, 96, sk.name + " " + p.skillLevel(id) + "重", () -> useSkill(sk));
+                b.sub = "内力 " + sk.mp + " · " + typeName(sk.type) + (p.matches(sk) ? " · 相合" : "");
                 b.enabled = p.mp >= sk.mp;
                 b.color = UI.RED;
-                i++;
-            }
-            float x = 36 + (i % 2) * (bw + gap);
-            float y = buttonTop + (i / 2) * (96 + gap);
-            addButton(x, y, bw, 96, "返回", () -> {
-                mode = MODE_MAIN;
-                buildMenu();
-            }).color = UI.INK_LIGHT;
-        } else {
-            int i = 0;
-            for (int id = 0; id < p.items.length; id++) {
+            } else {
                 GameData.Item it = GameData.ITEMS[id];
-                if (!it.consumable() || p.items[id] <= 0 || i >= 7) {
-                    continue;
-                }
-                final int itemId = id;
-                float x = 36 + (i % 2) * (bw + gap);
-                float y = buttonTop + (i / 2) * (96 + gap);
-                Button b = addButton(x, y, bw, 96, it.name + " ×" + p.items[id], () -> useItem(itemId));
-                b.textSize = 30;
+                b = addButton(slotX(i, bw, gap), slotY(i, gap), bw, 96, it.name + " ×" + p.items[id], () -> useItem(id));
                 b.sub = it.desc;
                 b.color = UI.JADE;
-                i++;
             }
-            float x = 36 + (i % 2) * (bw + gap);
-            float y = buttonTop + (i / 2) * (96 + gap);
-            addButton(x, y, bw, 96, i == 0 ? "行囊空空 · 返回" : "返回", () -> {
-                mode = MODE_MAIN;
-                buildMenu();
-            }).color = UI.INK_LIGHT;
+            b.textSize = 30;
+            i++;
         }
+        if (pageCount > 1) {
+            Button nb = addButton(slotX(i, bw, gap), slotY(i, gap), bw, 96, "下一页", () -> {
+                page = (page + 1) % pages(ids.size(), per);
+                buildMenu();
+            });
+            nb.sub = (page + 1) + " / " + pageCount;
+            nb.color = UI.INK_LIGHT;
+            i++;
+        }
+        addButton(slotX(i, bw, gap), slotY(i, gap), bw, 96, ids.isEmpty() ? "空空如也 · 返回" : "返回", () -> {
+            mode = MODE_MAIN;
+            buildMenu();
+        }).color = UI.INK_LIGHT;
     }
 
     private static String typeName(int type) {
@@ -217,6 +262,8 @@ public class BattleScene extends Scene {
                 return "吸血";
             case GameData.SK_DODGE:
                 return "身法";
+            case GameData.SK_POISON:
+                return "施毒";
             default:
                 return "重击";
         }
@@ -231,33 +278,60 @@ public class BattleScene extends Scene {
     // ---------------- 伤害计算 ----------------
 
     private boolean rollDodge(int atkAgi, int defAgi, boolean buff) {
-        float chance = 5 + (defAgi - atkAgi) * 1.2f + (buff ? 40 : 0);
-        chance = Math.max(3, Math.min(buff ? 75 : 35, chance));
+        float chance = 5 + (defAgi - atkAgi) * 1.0f + (buff ? 40 : 0);
+        chance = Math.max(3, Math.min(buff ? 75 : 30, chance));
         return game.rnd.nextFloat() * 100 < chance;
     }
 
-    private int damage(int atk, int def, float power, boolean[] crit, int agi) {
-        float base = atk * power * (0.9f + game.rnd.nextFloat() * 0.2f) * 100f / (100f + def * 3f);
-        crit[0] = game.rnd.nextFloat() * 100 < 8 + agi * 0.3f;
-        if (crit[0]) {
+    private int calc(float atk, float def, float power, boolean crit) {
+        float base = atk * power * (0.9f + game.rnd.nextFloat() * 0.2f) * 100f / (100f + def * 2f);
+        if (crit) {
             base *= 1.6f;
         }
         return Math.max(1, Math.round(base));
     }
 
     /** 玩家对敌人造成一击，返回造成的伤害（闪避为 0）。 */
-    private int hitEnemy(float power, float delay) {
+    private int hitEnemy(float power, float delay, boolean procs) {
         Player p = game.player;
         if (rollDodge(p.agi(), e.agi, false)) {
             floats.add(new FloatText("闪避", enemyX(), enemyY() - 140, UI.INK_LIGHT, 40, delay));
+            game.audio.sfx(Audio.SFX_MISS);
             return 0;
         }
-        boolean[] crit = new boolean[1];
-        int d = damage(p.atk(), e.def, power, crit, p.agi());
+        int sp = p.weaponSpecial();
+        float def = e.def * (sp == GameData.SP_PIERCE ? 0.6f : 1f);
+        boolean crit = game.rnd.nextFloat() * 100 < p.crit();
+        int d = calc(p.atk(), def, power, crit);
         ehp = Math.max(0, ehp - d);
-        floats.add(new FloatText((crit[0] ? "暴击 " : "-") + d, enemyX() + (game.rnd.nextFloat() - 0.5f) * 80,
-                enemyY() - 140, crit[0] ? UI.GOLD : UI.RED, crit[0] ? 58 : 48, delay));
+        floats.add(new FloatText((crit ? "暴击 " : "-") + d, enemyX() + (game.rnd.nextFloat() - 0.5f) * 80,
+                enemyY() - 140, crit ? UI.GOLD : UI.RED, crit ? 58 : 48, delay));
         enemyShake = 0.35f;
+        game.audio.sfx(crit ? Audio.SFX_CRIT : Audio.SFX_HIT);
+        if (procs && ehp > 0) {
+            switch (sp) {
+                case GameData.SP_DRAIN: {
+                    int h = Math.max(1, d * 15 / 100);
+                    p.heal(h);
+                    floats.add(new FloatText("+" + h, heroX(), heroY() - 160, UI.JADE, 40, delay + 0.1f));
+                    break;
+                }
+                case GameData.SP_FROST:
+                    if (!enemyStunned && game.rnd.nextFloat() < (e.boss ? 0.08f : 0.15f)) {
+                        enemyStunned = true;
+                        floats.add(new FloatText("冰封", enemyX(), enemyY() - 200, UI.BLUE, 44, delay + 0.2f));
+                    }
+                    break;
+                case GameData.SP_POISON:
+                    if (game.rnd.nextFloat() < 0.25f) {
+                        enemyPoison = 3;
+                        floats.add(new FloatText("中毒", enemyX(), enemyY() - 200, UI.JADE, 44, delay + 0.2f));
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
         return d;
     }
 
@@ -271,10 +345,14 @@ public class BattleScene extends Scene {
         heroLunge = 0.4f;
         slash = 0.4f;
         slashColor = UI.INK;
-        int d = hitEnemy(1f, 0f);
-        int mpGain = 3 + p.level / 2;
-        p.restoreMp(mpGain);
-        addLog(d > 0 ? "你挥手一击，造成 " + d + " 点伤害。" : e.name + " 闪开了你的攻击。");
+        int d = hitEnemy(1f, 0f, true);
+        String msg = d > 0 ? "你挥手一击，造成 " + d + " 点伤害。" : e.name + " 闪开了你的攻击。";
+        if (d > 0 && ehp > 0 && p.weaponSpecial() == GameData.SP_DOUBLE && game.rnd.nextFloat() < 0.25f) {
+            int d2 = hitEnemy(0.6f, 0.18f, false);
+            msg += "（连击 " + d2 + "）";
+        }
+        p.restoreMp(3 + p.level / 2);
+        addLog(msg);
         afterPlayerAction();
     }
 
@@ -288,12 +366,17 @@ public class BattleScene extends Scene {
             game.toast(sk.name + " 精进至第 " + p.skillLevel(sk.id) + " 重！");
         }
         float pow = p.skillPower(sk.id);
+        boolean match = p.matches(sk);
         showBanner(sk.name);
+        game.audio.sfx(Audio.SFX_SKILL);
+        String tag = match ? "（兵器相合）" : "";
         switch (sk.type) {
             case GameData.SK_HEAL: {
-                int h = Math.round(p.maxHp * pow);
+                int h = Math.round(p.maxHp() * pow);
                 p.heal(h);
+                playerPoison = 0;
                 floats.add(new FloatText("+" + h, heroX(), heroY() - 160, UI.JADE, 50, 0));
+                game.audio.sfx(Audio.SFX_HEAL);
                 addLog("你运起" + sk.name + "，回复 " + h + " 点气血。");
                 break;
             }
@@ -311,20 +394,20 @@ public class BattleScene extends Scene {
                 slashColor = UI.BLUE;
                 int total = 0;
                 for (int i = 0; i < sk.hits; i++) {
-                    total += hitEnemy(pow, i * 0.15f);
+                    total += hitEnemy(pow, i * 0.15f, i == 0);
                     if (ehp <= 0) {
                         break;
                     }
                 }
-                addLog("你使出" + sk.name + "，连环 " + sk.hits + " 击，共造成 " + total + " 点伤害！");
+                addLog("你使出" + sk.name + tag + "，连环 " + sk.hits + " 击，共造成 " + total + " 点伤害！");
                 break;
             }
             case GameData.SK_STUN: {
                 heroLunge = 0.4f;
                 slash = 0.5f;
                 slashColor = UI.PURPLE;
-                int d = hitEnemy(pow, 0);
-                String msg = "你使出" + sk.name + "，造成 " + d + " 点伤害";
+                int d = hitEnemy(pow, 0, true);
+                String msg = "你使出" + sk.name + tag + "，造成 " + d + " 点伤害";
                 float chance = (e.boss ? 25 : 45) + p.skillLevel(sk.id) * 3;
                 if (d > 0 && ehp > 0 && game.rnd.nextFloat() * 100 < chance) {
                     enemyStunned = true;
@@ -340,21 +423,37 @@ public class BattleScene extends Scene {
                 heroLunge = 0.4f;
                 slash = 0.5f;
                 slashColor = UI.JADE;
-                int d = hitEnemy(pow, 0);
+                int d = hitEnemy(pow, 0, true);
                 int h = d / 2;
                 p.heal(h);
                 if (h > 0) {
                     floats.add(new FloatText("+" + h, heroX(), heroY() - 160, UI.JADE, 44, 0.2f));
                 }
-                addLog("你使出" + sk.name + "，造成 " + d + " 点伤害，回复 " + h + " 点气血。");
+                addLog("你使出" + sk.name + tag + "，造成 " + d + " 点伤害，回复 " + h + " 点气血。");
+                break;
+            }
+            case GameData.SK_POISON: {
+                heroLunge = 0.4f;
+                slash = 0.5f;
+                slashColor = UI.JADE;
+                int d = hitEnemy(pow, 0, true);
+                String msg = "你使出" + sk.name + tag + "，造成 " + d + " 点伤害";
+                if (d > 0 && ehp > 0) {
+                    enemyPoison = 4;
+                    msg += "，剧毒入体！";
+                    floats.add(new FloatText("剧毒", enemyX(), enemyY() - 200, UI.JADE, 44, 0.3f));
+                } else {
+                    msg += "。";
+                }
+                addLog(msg);
                 break;
             }
             default: {
                 heroLunge = 0.5f;
                 slash = 0.6f;
                 slashColor = UI.RED;
-                int d = hitEnemy(pow, 0);
-                addLog(d > 0 ? "你使出" + sk.name + "，造成 " + d + " 点伤害！" : "你使出" + sk.name + "，却被对方避开了。");
+                int d = hitEnemy(pow, 0, true);
+                addLog(d > 0 ? "你使出" + sk.name + tag + "，造成 " + d + " 点伤害！" : "你使出" + sk.name + "，却被对方避开了。");
                 break;
             }
         }
@@ -368,9 +467,13 @@ public class BattleScene extends Scene {
             return;
         }
         p.items[id]--;
-        Inventory.applyConsumable(p, it);
+        String eff = Inventory.applyConsumable(p, it);
+        if (it.type == GameData.IT_CURE) {
+            playerPoison = 0;
+        }
+        game.audio.sfx(Audio.SFX_HEAL);
         floats.add(new FloatText(it.name, heroX(), heroY() - 160, UI.JADE, 40, 0));
-        addLog("你服下" + it.name + "。" + it.desc);
+        addLog("你服下" + it.name + "，" + eff + "。");
         afterPlayerAction();
     }
 
@@ -380,7 +483,7 @@ public class BattleScene extends Scene {
         if (game.rnd.nextFloat() * 100 < chance) {
             game.toast("你脚底抹油，溜之大吉");
             game.save();
-            game.setScene(new LocationScene(game));
+            Story.toLocation(game);
         } else {
             addLog("你想要逃走，却被 " + e.name + " 拦了回来！");
             afterPlayerAction();
@@ -397,9 +500,26 @@ public class BattleScene extends Scene {
 
     private void enemyTurn() {
         Player p = game.player;
+        if (enemyPoison > 0) {
+            int pd = Math.max(5, Math.round(emax * (e.boss ? 0.02f : 0.05f)));
+            ehp = Math.max(0, ehp - pd);
+            enemyPoison--;
+            floats.add(new FloatText("毒 -" + pd, enemyX(), enemyY() - 120, UI.JADE, 40, 0));
+            addLog(e.name + " 毒发，损失 " + pd + " 点气血。");
+            if (ehp <= 0) {
+                schedule(0.8f, this::win);
+                return;
+            }
+        }
+        if (e.boss && !enraged && ehp <= emax / 2) {
+            enraged = true;
+            eatkMul = 1.25f;
+            showBanner("暴怒");
+            addLog(e.name + " 怒发冲冠，攻势大涨！");
+        }
         if (enemyStunned) {
             enemyStunned = false;
-            addLog(e.name + " 穴道被封，动弹不得！");
+            addLog(e.name + " 动弹不得！");
         } else {
             boolean special = game.rnd.nextFloat() < (e.boss ? 0.4f : 0.28f);
             float power = special ? e.skillPower : 1f;
@@ -407,22 +527,36 @@ public class BattleScene extends Scene {
             if (special) {
                 showBanner(e.skill);
             }
+            String act = special ? "使出「" + e.skill + "」" : "出手攻击";
             if (rollDodge(e.agi, p.agi(), dodgeTurns > 0)) {
                 floats.add(new FloatText("闪避", heroX(), heroY() - 160, UI.INK_LIGHT, 40, 0.1f));
-                addLog(e.name + (special ? "使出「" + e.skill + "」" : "出手攻击") + "，被你闪身避过。");
+                game.audio.sfx(Audio.SFX_MISS);
+                addLog(e.name + act + "，被你闪身避过。");
             } else {
-                int def = p.def();
+                float def = p.def();
                 if (guardTurns > 0) {
                     def = def * 2 + 10;
                 }
-                boolean[] crit = new boolean[1];
-                int d = damage(e.atk, def, power, crit, e.agi / 2);
+                boolean crit = game.rnd.nextFloat() * 100 < 5 + e.agi * 0.15f;
+                int d = calc(e.atk * eatkMul, def, power, crit);
                 p.hp = Math.max(0, p.hp - d);
                 heroShake = 0.35f;
-                floats.add(new FloatText((crit[0] ? "暴击 " : "-") + d, heroX() + (game.rnd.nextFloat() - 0.5f) * 60,
-                        heroY() - 160, crit[0] ? UI.GOLD : UI.RED, crit[0] ? 56 : 46, 0.1f));
-                addLog(e.name + (special ? "使出「" + e.skill + "」" : "出手攻击") + "，你受到 " + d + " 点伤害。");
+                game.audio.sfx(crit ? Audio.SFX_CRIT : Audio.SFX_HURT);
+                floats.add(new FloatText((crit ? "暴击 " : "-") + d, heroX() + (game.rnd.nextFloat() - 0.5f) * 60,
+                        heroY() - 160, crit ? UI.GOLD : UI.RED, crit ? 56 : 46, 0.1f));
+                String msg = e.name + act + "，你受到 " + d + " 点伤害。";
+                if (e.poison && special && p.hp > 0 && playerPoison == 0) {
+                    playerPoison = 3;
+                    msg += "你中毒了！";
+                }
+                addLog(msg);
             }
+        }
+        if (playerPoison > 0 && p.hp > 0) {
+            int pd = Math.max(3, p.maxHp() * 5 / 100);
+            p.hp = Math.max(0, p.hp - pd);
+            playerPoison--;
+            floats.add(new FloatText("毒 -" + pd, heroX(), heroY() - 110, UI.JADE, 36, 0.4f));
         }
         if (guardTurns > 0) {
             guardTurns--;
@@ -445,76 +579,77 @@ public class BattleScene extends Scene {
         p.silver += silver;
         p.kills++;
         sb.append("击败 ").append(e.name).append("！\n修为 +").append(e.exp).append("   银两 +").append(silver);
-        if (e.drop >= 0 && game.rnd.nextFloat() < e.dropRate) {
+        boolean first = e.boss && !p.has("boss_" + e.id);
+        if (e.boss) {
+            p.set("boss_" + e.id);
+        }
+        float rate = e.boss ? (first ? 1f : 0.2f) : e.dropRate;
+        if (e.drop >= 0 && game.rnd.nextFloat() < rate) {
             p.items[e.drop]++;
-            sb.append("\n获得 ").append(GameData.ITEMS[e.drop].name);
-            if (!GameData.ITEMS[e.drop].consumable()) {
+            GameData.Item it = GameData.ITEMS[e.drop];
+            sb.append("\n获得 ").append(it.name);
+            if (it.equipable()) {
                 sb.append("（可在行囊中装备）");
             }
         }
-        for (String s : p.gainExp(e.exp)) {
+        if ((e.boss || e.lv >= 6) && game.rnd.nextFloat() < (e.boss ? 1f : 0.08f)) {
+            int n = e.boss ? 1 + game.rnd.nextInt(2) : 1;
+            p.items[Inventory.IRON] += n;
+            sb.append("\n获得 玄铁 ×").append(n);
+        }
+        List<String> ups = p.gainExp(e.exp);
+        for (String s : ups) {
             sb.append("\n").append(s);
         }
-        boolean questDone = false;
-        boolean finale = false;
-        GameData.Quest q = p.currentQuest();
-        if (q != null && q.target == e.id) {
-            p.questProgress++;
-            if (p.questProgress >= q.count) {
-                questDone = true;
-                p.questStage++;
-                p.questProgress = 0;
-                p.silver += q.silver;
-                sb.append("\n\n任务完成【").append(q.title).append("】\n奖励 修为 +").append(q.exp).append("  银两 +").append(q.silver);
-                for (String s : p.gainExp(q.exp)) {
-                    sb.append("\n").append(s);
-                }
-                if (p.questStage >= GameData.QUESTS.length) {
-                    p.finished = true;
-                    finale = true;
-                }
-            } else {
-                sb.append("\n任务进度 ").append(p.questProgress).append("/").append(q.count);
+        GameData.Location l = GameData.LOCATIONS[p.location];
+        if (kind == KIND_WILD && !l.town && p.explore[l.id] < l.floors) {
+            p.explore[l.id]++;
+            sb.append("\n探索深入 ").append(p.explore[l.id]).append("/").append(l.floors);
+            if (p.explore[l.id] >= l.floors) {
+                sb.append("（已探明全境）");
+            }
+        }
+        if (kind != KIND_STORY) {
+            stageDone = Story.onKill(game, e.id);
+            Story.Stage st = Story.current(p);
+            if (!stageDone && st.type == Story.T_KILL && st.target == e.id && p.location == st.loc) {
+                sb.append("\n任务进度 ").append(p.progress).append("/").append(st.count);
             }
         }
         resultText = sb.toString();
+        game.audio.sfx(ups.isEmpty() ? Audio.SFX_WIN : Audio.SFX_LEVEL);
         game.save();
-        final boolean done = questDone;
-        final boolean fin = finale;
-        final int stage = p.questStage;
         afterResult = () -> {
-            if (fin) {
-                game.setScene(new StoryScene(game, "终章 · 笑傲江湖",
-                        "天魔教主轰然倒地，黑木崖上乌云散尽，一缕阳光洒落。\n\n"
-                                + "正道群雄齐聚，尊你为武林盟主。你却只是淡淡一笑，将盟主令牌交还。\n\n"
-                                + "「江湖路远，我只想做个快意恩仇的侠客。」\n\n"
-                                + "此后江湖之上，常有人说起一位" + GameData.SECTS[p.sect].name + "的少年侠客——"
-                                + p.name + "。\n\n（全剧终 · 你可以继续游历江湖）",
-                        () -> game.goLocation(p.lastTown)));
-            } else if (done && stage < GameData.QUESTS.length) {
-                GameData.Quest nq = GameData.QUESTS[stage];
-                game.setScene(new StoryScene(game, "新的委托 · " + nq.title, nq.desc
-                        + "\n\n目的地：" + GameData.LOCATIONS[nq.location].name,
-                        () -> game.goLocation(p.location)));
+            if (stageDone) {
+                Story.completeStage(game);
+            } else if (onWin != null) {
+                onWin.run();
             } else {
-                game.goLocation(p.location);
+                Story.toLocation(game);
             }
         };
         layout();
     }
 
     private void lose() {
-        Player p = game.player;
+        final Player p = game.player;
         state = ST_LOSE;
-        int lost = p.silver / 2;
-        p.silver -= lost;
-        p.fullRestore();
-        p.day += 2;
-        p.location = p.lastTown;
-        resultText = "你力竭倒地，眼前一黑……\n\n醒来时已被好心人送回" + GameData.LOCATIONS[p.lastTown].name
-                + "，丢失了 " + lost + " 两银子。\n胜败乃兵家常事，大侠请重新来过。";
+        game.audio.sfx(Audio.SFX_LOSE);
+        if (onLose != null) {
+            p.hp = Math.max(1, p.maxHp() * 3 / 10);
+            resultText = "你力竭倒地，败下阵来……";
+            afterResult = onLose;
+        } else {
+            int lost = p.silver / 2;
+            p.silver -= lost;
+            p.fullRestore();
+            p.day += 2;
+            p.location = p.lastTown;
+            resultText = "你力竭倒地，眼前一黑……\n\n醒来时已被好心人送回" + GameData.LOCATIONS[p.lastTown].name
+                    + "，丢失了 " + lost + " 两银子。\n胜败乃兵家常事，大侠请重新来过。";
+            afterResult = () -> game.goLocation(p.lastTown);
+        }
         game.save();
-        afterResult = () -> game.goLocation(p.lastTown);
         layout();
     }
 
@@ -555,20 +690,20 @@ public class BattleScene extends Scene {
 
     @Override
     public void draw(Canvas c) {
-        GameData.Location l = GameData.LOCATIONS[game.player.location];
-        UI.background(c, W(), H(), l.variant, 0xFFEBDDBE, 0xFFB9A57E, game.time);
         Player p = game.player;
+        GameData.Location l = GameData.LOCATIONS[p.location];
+        UI.background(c, W(), H(), l.variant, 0xFFEBDDBE, 0xFFB9A57E, game.time);
         // 敌方信息
         RectF er = new RectF(16, 16, W() - 16, 150);
         UI.panel(c, er, 0xEE231E19, e.boss ? UI.RED : UI.GOLD);
         UI.text(c, (e.boss ? "【首领】" : "") + e.name, 40, 66, 38, e.boss ? 0xFFE06050 : UI.PAPER);
         UI.text(c, "Lv." + e.lv, W() - 40, 66, 30, UI.GOLD, Paint.Align.RIGHT);
-        UI.bar(c, 40, 88, W() - 80, 34, ehp / (float) e.hp, UI.RED, ehp + " / " + e.hp);
-        if (enemyStunned) {
-            UI.text(c, "穴道被封", W() - 40, 140, 22, 0xFFC090E0, Paint.Align.RIGHT);
+        UI.bar(c, 40, 88, W() - 80, 34, ehp / (float) emax, UI.RED, ehp + " / " + emax);
+        String est = (enemyStunned ? "定身 " : "") + (enemyPoison > 0 ? "中毒" + enemyPoison + " " : "") + (enraged ? "暴怒" : "");
+        if (!est.isEmpty()) {
+            UI.text(c, est, W() - 40, 145, 22, 0xFFE0A0A0, Paint.Align.RIGHT);
         }
 
-        // 战场
         float shakeE = enemyShake > 0 ? (float) Math.sin(enemyShake * 80) * 14 : 0;
         float shakeH = heroShake > 0 ? (float) Math.sin(heroShake * 80) * 14 : 0;
         float lungeH = (float) Math.sin(Math.min(1f, heroLunge / 0.4f) * Math.PI) * 90;
@@ -583,13 +718,17 @@ public class BattleScene extends Scene {
             c.drawCircle(heroX(), heroY(), 150, UI.stroke(0x88B7862C, 4));
         }
         if (dodgeTurns > 0) {
-            Sprites.hero(c, heroX() - 30, heroY(), 0.95f, 0x552F5A8A, 0x55FFFFFF, 1, game.time + 0.5f, p.weapon >= 0);
+            Sprites.hero(c, heroX() - 30, heroY(), 0.95f, 0x552F5A8A, 0x55FFFFFF, 1, game.time + 0.5f, -1, false);
         }
-        Sprites.hero(c, heroX() + shakeH + lungeH, heroY() - lungeH * 0.6f, 0.95f, robe, UI.PAPER_LIGHT, 1, game.time, p.weapon >= 0);
+        if (playerPoison > 0) {
+            c.drawCircle(heroX(), heroY() + 20, 120, UI.fill(0x223F6B2F));
+        }
+        Sprites.hero(c, heroX() + shakeH + lungeH, heroY() - lungeH * 0.6f, 0.95f, robe, UI.PAPER_LIGHT, 1, game.time,
+                p.drawWeapon(), false);
 
         if (slash > 0) {
             float k = slash / 0.6f;
-            int a = (int) (k * 220);
+            int a = (int) (Math.min(1f, k) * 220);
             Paint sp = UI.stroke((a << 24) | (slashColor & 0xFFFFFF), 12 * k + 2);
             RectF arc = new RectF(enemyX() - 140, enemyY() - 160, enemyX() + 140, enemyY() + 120);
             c.drawArc(arc, 200 + (1 - k) * 60, 120, false, sp);
@@ -598,19 +737,19 @@ public class BattleScene extends Scene {
 
         // 我方状态
         float sy = logTop - 60;
-        UI.bar(c, W() * 0.5f, sy - 50, W() * 0.5f - 36, 30, p.hp / (float) p.maxHp, UI.RED, "气血 " + p.hp + "/" + p.maxHp);
-        UI.bar(c, W() * 0.5f, sy - 10, W() * 0.5f - 36, 30, p.mp / (float) Math.max(1, p.maxMp), UI.BLUE, "内力 " + p.mp + "/" + p.maxMp);
-        String buffs = (guardTurns > 0 ? "护体" + guardTurns + "  " : "") + (dodgeTurns > 0 ? "身法" + dodgeTurns : "");
+        UI.bar(c, W() * 0.5f, sy - 50, W() * 0.5f - 36, 30, p.hp / (float) p.maxHp(), UI.RED, "气血 " + p.hp + "/" + p.maxHp());
+        UI.bar(c, W() * 0.5f, sy - 10, W() * 0.5f - 36, 30, p.mp / (float) Math.max(1, p.maxMp()), UI.BLUE, "内力 " + p.mp + "/" + p.maxMp());
+        String buffs = (guardTurns > 0 ? "护体" + guardTurns + "  " : "") + (dodgeTurns > 0 ? "身法" + dodgeTurns + "  " : "")
+                + (playerPoison > 0 ? "中毒" + playerPoison : "");
         if (!buffs.isEmpty()) {
             UI.text(c, buffs, W() - 36, sy - 66, 24, UI.INK, Paint.Align.RIGHT);
         }
 
-        // 招式横幅
         if (bannerT > 0 && banner != null) {
             float k = Math.min(1f, bannerT / 0.3f);
             int a = (int) (k * 255);
             float bs = 84 + (1 - bannerT) * 20;
-            UI.text(c, banner, W() / 2 + 4, fieldTop + 260 + 4, bs, (a / 3 << 24), Paint.Align.CENTER);
+            UI.text(c, banner, W() / 2 + 4, fieldTop + 260 + 4, bs, (a / 3) << 24, Paint.Align.CENTER);
             UI.text(c, banner, W() / 2, fieldTop + 260, bs, (a << 24) | (UI.RED & 0xFFFFFF), Paint.Align.CENTER);
         }
 
@@ -623,12 +762,11 @@ public class BattleScene extends Scene {
             UI.text(c, f.s, f.x, f.y, f.size, (a << 24) | (f.color & 0xFFFFFF), Paint.Align.CENTER);
         }
 
-        // 战斗记录
         if (state == ST_WIN || state == ST_LOSE) {
-            RectF rr = new RectF(36, logTop, W() - 36, H() - 170);
+            RectF rr = new RectF(36, logTop - 40, W() - 36, H() - 170);
             UI.panel(c, rr);
-            UI.text(c, state == ST_WIN ? "胜" : "败", W() - 100, logTop + 90, 90, state == ST_WIN ? UI.JADE : UI.RED, Paint.Align.CENTER);
-            UI.wrap(c, resultText, 64, logTop + 60, W() - 220, 30, UI.INK, 44);
+            UI.text(c, state == ST_WIN ? "胜" : "败", W() - 100, logTop + 50, 90, state == ST_WIN ? UI.JADE : UI.RED, Paint.Align.CENTER);
+            UI.wrap(c, resultText, 64, logTop + 20, W() - 220, 28, UI.INK, 42);
         } else {
             RectF lr = new RectF(36, logTop, W() - 36, logBottom);
             UI.panel(c, lr);

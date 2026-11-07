@@ -188,9 +188,23 @@ public final class UI {
         text(c, p.name, 140, 66, 36, PAPER);
         text(c, "Lv." + p.level + "  " + GameData.SECTS[p.sect].name, 140 + textWidth(p.name, 36) + 16, 66, 26, GOLD);
         text(c, "银两 " + p.silver + "   第" + p.day + "日", g.W - 36, 66, 26, PAPER_DARK, Paint.Align.RIGHT);
-        bar(c, 140, 84, 260, 28, p.hp / (float) p.maxHp, RED, "气血 " + p.hp + "/" + p.maxHp);
-        bar(c, 416, 84, 268, 28, p.mp / (float) Math.max(1, p.maxMp), BLUE, "内力 " + p.mp + "/" + p.maxMp);
+        bar(c, 140, 84, 260, 28, p.hp / (float) p.maxHp(), RED, "气血 " + p.hp + "/" + p.maxHp());
+        bar(c, 416, 84, 268, 28, p.mp / (float) Math.max(1, p.maxMp()), BLUE, "内力 " + p.mp + "/" + p.maxMp());
         bar(c, 140, 124, 544, 18, p.exp / (float) p.expNeed(), GOLD, "修为 " + p.exp + "/" + p.expNeed());
+    }
+
+    /** 以中线为 0 的双向条，用于侠义值（-100..100）。 */
+    public static void centerBar(Canvas c, float x, float y, float w, float h, int value, int negColor, int posColor) {
+        RectF r = new RectF(x, y, x + w, y + h);
+        c.drawRoundRect(r, h / 2, h / 2, fill(0xFF3A322A));
+        float mid = x + w / 2;
+        float k = Math.max(-1f, Math.min(1f, value / 100f));
+        if (k > 0) {
+            c.drawRect(mid, y + 3, mid + (w / 2 - 4) * k, y + h - 3, fill(posColor));
+        } else if (k < 0) {
+            c.drawRect(mid + (w / 2 - 4) * k, y + 3, mid, y + h - 3, fill(negColor));
+        }
+        c.drawLine(mid, y - 4, mid, y + h + 4, stroke(PAPER, 3f));
     }
 
     /** 场景标题，竖排的毛笔风格感觉用大字 + 下划墨线表现。 */

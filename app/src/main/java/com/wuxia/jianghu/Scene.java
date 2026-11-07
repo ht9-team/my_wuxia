@@ -4,7 +4,7 @@ import android.graphics.Canvas;
 
 import java.util.ArrayList;
 
-/** 场景基类：负责按钮的布局、按下态和点击分发。 */
+/** 场景基类：负责按钮的布局、按下态、点击音效和点击分发。 */
 public abstract class Scene {
     protected final Game game;
     protected final ArrayList<Button> buttons = new ArrayList<>();
@@ -16,6 +16,11 @@ public abstract class Scene {
 
     /** 重新构建按钮；在进入场景和屏幕尺寸变化时调用。 */
     public void layout() {
+    }
+
+    /** 进入场景时播放的背景音乐，Audio.KEEP 表示保持当前音乐。 */
+    public int music() {
+        return Audio.KEEP;
     }
 
     public void update(float dt) {
@@ -67,6 +72,7 @@ public abstract class Scene {
         if (b != null) {
             b.pressed = false;
             if (b.contains(x, y) && b.enabled && b.visible && b.action != null) {
+                game.audio.sfx(Audio.SFX_CLICK);
                 b.action.run();
             }
         } else if (x >= 0 && y >= 0) {
@@ -80,5 +86,10 @@ public abstract class Scene {
 
     protected float H() {
         return game.H;
+    }
+
+    /** 分页工具：返回总页数。 */
+    protected static int pages(int count, int perPage) {
+        return Math.max(1, (count + perPage - 1) / perPage);
     }
 }
