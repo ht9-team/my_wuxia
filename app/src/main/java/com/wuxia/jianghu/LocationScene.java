@@ -4,10 +4,13 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
 
+import java.util.ArrayList;
+
 /** 当前所在地点：城镇提供客栈 / 集市 / 铁匠铺 / 学艺；野外分层探索，探明全境后可挑战首领。 */
 public class LocationScene extends Scene {
     private static final float BH = 92;
     private static final float GAP = 14;
+    private static final float SH = 84;
     private String log;
 
     public LocationScene(Game game) {
@@ -19,7 +22,6 @@ public class LocationScene extends Scene {
         return GameData.LOCATIONS[game.player.location];
     }
 
-
     @Override
     public int music() {
         return loc().town ? Audio.BGM_TOWN : Audio.BGM_WILD;
@@ -27,6 +29,11 @@ public class LocationScene extends Scene {
 
     private float buttonsTop() {
         return H() - 30 - 4 * BH - 3 * GAP;
+    }
+
+    private float storyTop() {
+        int n = Math.min(2, Story.talkGoals(game.player).size());
+        return buttonsTop() - n * (SH + 12);
     }
 
     @Override
@@ -41,6 +48,21 @@ public class LocationScene extends Scene {
         float r1 = y0 + BH + GAP;
         float r2 = r1 + BH + GAP;
         float r3 = r2 + BH + GAP;
+
+        // 剧情按钮（主线 / 支线中需要在此处触发的剧情）
+        ArrayList<Story.Goal> talks = Story.talkGoals(p);
+        float sy = storyTop();
+        for (int i = 0; i < talks.size() && i < 2; i++) {
+            final Story.Goal goal = talks.get(i);
+            Button sb = addButton(36, sy, W() - 72, SH, (goal.side < 0 ? "【主线】" : "【支线】") + goal.title,
+                    () -> Story.completeGoal(game, goal));
+            sb.color = UI.GOLD;
+            sb.selected = true;
+            sb.textSize = 30;
+            sb.sub = "点击进入剧情";
+            sy += SH + 12;
+        }
+
         if (l.town) {
             Button inn = addButton(xL, y0, bw, BH, "客栈", () -> game.setScene(new InnScene(game)));
             inn.sub = p.hasBounty() ? "悬赏 " + p.bountyProgress + "/" + p.bountyCount : "住店 · 悬赏 · 打听";
@@ -56,38 +78,52 @@ public class LocationScene extends Scene {
             Button bb;
             if (l.storyBoss) {
                 if (Story.finalAvailable(p)) {
-                    bb = addButton(xR, y0, bw, BH, "登临绝顶", () -> Story.play(game, "climax"));
-                    bb.sub = "决战天魔殿";
+                    final String done = Story.current(p).done;
+                    bb = addButton(xR, y0, bw, BH, l.id == 18 ? "直面影阁主" : "登临绝顶", () -> Story.play(game, done));
+                    bb.sub = l.id == 18 ? "归墟最深处" : "决战天魔殿";
                 } else {
-                    bb = addButton(xR, y0, bw, BH, "崖顶", null);
+                    bb = addButton(xR, y0, bw, BH, l.id == 18 ? "归墟深处" : "崖顶", null);
                     bb.enabled = false;
-                    if (p.finished) {
+                    Story.Stage st = Story.current(p);
+                    if (l.id == 6 && p.stage > Story.S_FINAL) {
                         bb.sub = "已归于平静";
-                    } else if (Story.current(p).type == Story.T_FINAL) {
+                    } else if (l.id == 18 && p.stage > Story.S_SHADOW) {
+                        bb.sub = "归墟已崩塌";
+                    } else if (st.type == Story.T_FINAL && st.loc(p) == l.id) {
                         bb.sub = "探索未尽 " + prog + "/" + l.floors;
                     } else {
                         bb.sub = "时机未到";
                     }
                 }
             } else {
-                final GameData.Enemy b = GameData.ENEMIES[l.boss];
-                bb = addButton(xR, y0, bw, BH, "挑战首领",
-                        () -> game.setScene(new BattleScene(game, b.id, BattleScene.KIND_BOSS)));
-                bb.enabled = prog >= l.floors;
-                bb.sub = bb.enabled ? b.name + " Lv." + b.lv : "探索未尽 " + prog + "/" + l.floors;
+                final int bossId = Story.bossFor(p, l);
+                if (bossId >= 0) {
+                    GameData.Enemy b = GameData.ENEMIES[bossId];
+                    bb = addButton(xR, y0, bw, BH, "挑战首领",
+                            () -> game.setScene(new BattleScene(game, bossId, BattleScene.KIND_BOSS)));
+                    bb.enabled = prog >= l.floors;
+                    bb.sub = bb.enabled ? b.name + " Lv." + b.lv : "探索未尽 " + prog + "/" + l.floors;
+                } else {
+                    bb = addButton(xR, y0, bw, BH, "首领", null);
+                    bb.enabled = false;
+                    bb.sub = "此地无首领";
+                }
             }
             bb.color = UI.PURPLE;
             addButton(xL, r1, bw, BH, "打坐调息", this::meditate).sub = "耗时一日，恢复两成";
-            addButton(xR, r1, bw, BH, "武学", () -> game.setScene(new SkillScene(game, false))).sub = "已习武功";
+            if (l.id == Sects.home(p)) {
+                addButton(xR, r1, bw, BH, "师门传功", () -> game.setScene(new SkillScene(game, true))).sub = "学习本门武学";
+            } else {
+                addButton(xR, r1, bw, BH, "武学", () -> game.setScene(new SkillScene(game, false))).sub = "已习武功";
+            }
         }
         addButton(xL, r2, bw, BH, "行囊", () -> game.setScene(new BagScene(game))).sub = "物品 · 装备 · 属性";
-        addButton(xR, r2, bw, BH, "江湖志", () -> game.setScene(new JournalScene(game))).sub = "剧情 · 人物 · 结局";
+        addButton(xR, r2, bw, BH, "江湖志", () -> game.setScene(new JournalScene(game))).sub = "指引 · 线索 · 节点";
         addButton(xL, r3, bw, BH, "江湖地图", game::goMap).sub = "前往他处";
         Button sys = addButton(xR, r3, bw, BH, "系统", () -> game.setScene(new SystemScene(game, false)));
         sys.sub = "存档 · 声音 · 标题";
         sys.color = UI.INK_LIGHT;
     }
-
 
     private void meditate() {
         Player p = game.player;
@@ -110,13 +146,18 @@ public class LocationScene extends Scene {
             Story.hermit(game, l.hermitSkill);
             return;
         }
+        int spawn = Story.spawnFor(p, l);
+        if (spawn >= 0 && r < 45) {
+            game.setScene(new BattleScene(game, spawn, BattleScene.KIND_WILD));
+            return;
+        }
         if (r < 62) {
             int[] pool = l.enemies;
             int id = pool[game.rnd.nextInt(pool.length)];
             game.setScene(new BattleScene(game, id, BattleScene.KIND_WILD));
             return;
         }
-        if (r < 74) {
+        if (r < 74 && l.id != 18) {
             game.setScene(new DialogScene(game, Story.randomEvent(game)));
             return;
         }
@@ -127,7 +168,7 @@ public class LocationScene extends Scene {
             log = "你在草丛中发现了一个钱袋，得到 " + s + " 两银子。";
         } else if (r < 92) {
             int item;
-            if (l.id == 8 || l.id == 12) {
+            if (l.id == 8 || l.id == 12 || l.id == 20) {
                 item = 37;
             } else if (p.level >= 9) {
                 item = 2;
@@ -162,6 +203,8 @@ public class LocationScene extends Scene {
         int tagColor = UI.INK_LIGHT;
         if (l.town) {
             tag = "城镇";
+        } else if (l.id == Sects.home(p)) {
+            tag = "师门 · 共 " + l.floors + " 层";
         } else if (p.level < l.minLv) {
             tag = "此地凶险（建议 Lv." + l.minLv + "）";
             tagColor = UI.RED;
@@ -171,7 +214,7 @@ public class LocationScene extends Scene {
         UI.text(c, tag, W() / 2, 300, 24, tagColor, Paint.Align.CENTER);
 
         float top = 322;
-        float bottom = buttonsTop() - 18;
+        float bottom = storyTop() - 18;
         RectF logR = new RectF(36, top, W() - 36, top + 150);
         UI.panel(c, logR);
         UI.wrap(c, log, 62, top + 48, W() - 124, 27, UI.INK, 38);
@@ -183,9 +226,30 @@ public class LocationScene extends Scene {
         UI.seal(c, p.finished ? "传说" : "主线", qr.right - 60, qr.top + 58, 70);
         UI.text(c, s.chapter, 60, qy + 44, 24, UI.INK_LIGHT);
         UI.text(c, "【" + s.title + "】", 54, qy + 88, 32, UI.RED);
-        float yy = UI.wrap(c, s.desc, 62, qy + 132, W() - 210, 25, UI.INK, 36);
-        if (qr.bottom - 24 > yy) {
-            UI.wrap(c, Story.objective(p), 62, Math.max(yy + 6, qr.bottom - 64), W() - 124, 24, UI.JADE, 34);
+        float avail = qr.bottom - 16;
+        float y = qy + 128;
+        ArrayList<String> obj = UI.split(Story.objective(p), W() - 124, 24);
+        ArrayList<String> desc = UI.split(s.desc, W() - 210, 25);
+        ArrayList<String> hint = UI.split(Story.hint(p), W() - 124, 22);
+        if (y + desc.size() * 36 + obj.size() * 34 <= avail) {
+            for (String line : desc) {
+                UI.text(c, line, 62, y, 25, UI.INK);
+                y += 36;
+            }
+            y += 4;
+        }
+        for (String line : obj) {
+            if (y > avail) {
+                break;
+            }
+            UI.text(c, line, 62, y, 24, UI.JADE);
+            y += 34;
+        }
+        if (y + hint.size() * 30 <= avail) {
+            for (String line : hint) {
+                UI.text(c, line, 62, y, 22, UI.GOLD);
+                y += 30;
+            }
         }
         drawButtons(c);
     }

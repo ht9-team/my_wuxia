@@ -42,7 +42,7 @@ public class InnScene extends Scene {
         Player p = game.player;
         ArrayList<Integer> locs = new ArrayList<>();
         for (GameData.Location l : GameData.LOCATIONS) {
-            if (!l.town && !l.storyBoss && l.minLv <= p.level + 1 && l.enemies.length > 0) {
+            if (!l.town && !l.storyBoss && l.minLv <= p.level + 1 && l.enemies.length > 0 && GameData.visible(p, l.id)) {
                 locs.add(l.id);
             }
         }

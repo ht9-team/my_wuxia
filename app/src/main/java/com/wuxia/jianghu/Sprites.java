@@ -172,9 +172,59 @@ public final class Sprites {
                     sash = UI.PAPER_LIGHT;
                     w = GameData.W_SWORD;
                     break;
+                case "慧明":
+                    robe = 0xFF9A6A2A;
+                    sash = 0xFF5A3A1A;
+                    w = GameData.W_FIST;
+                    break;
+                case "清虚":
+                    robe = 0xFF4A5A7A;
+                    sash = 0xFF1E2A3A;
+                    w = GameData.W_SWORD;
+                    break;
+                case "静玄":
+                    robe = 0xFF6A6A6A;
+                    sash = 0xFF2A2A2A;
+                    female = true;
+                    w = GameData.W_SWORD;
+                    break;
+                case "钱不易":
+                    robe = 0xFF6A5A3A;
+                    sash = 0xFF8A3A2A;
+                    w = GameData.W_STAFF;
+                    break;
+                case "面具人":
+                case "影阁死士":
+                    robe = 0xFF1A1A22;
+                    sash = 0xFF5A5A6A;
+                    w = GameData.W_SWORD;
+                    break;
+                case "白无常":
+                    robe = 0xFFE8E8E8;
+                    sash = 0xFF2A2A2A;
+                    break;
+                case "黑无常":
+                    robe = 0xFF151515;
+                    sash = 0xFFA3291F;
+                    break;
+                case "慧空":
+                case "玄冥子":
+                case "血手人屠":
+                case "彭长老":
+                    robe = 0xFF5A4A3A;
+                    sash = 0xFF2A2A2A;
+                    w = GameData.W_FIST;
+                    break;
+                case "江湖百晓生":
+                    robe = 0xFF8A6A4A;
+                    sash = UI.PAPER_LIGHT;
+                    break;
                 case "说书人":
                 case "店小二":
                 case "书生":
+                case "镖头":
+                case "铸剑师":
+                case "知府":
                     robe = 0xFF7A5A3A;
                     sash = UI.GOLD;
                     break;
@@ -215,7 +265,7 @@ public final class Sprites {
                 break;
             default:
                 int sash = e.boss ? UI.GOLD : 0xFF8B1A1A;
-                boolean female = e.id == 10;
+                boolean female = e.id == 10 || e.id == 52 || e.id == 65 || e.id == 71 || e.id == 74;
                 hero(c, x, y, s * (e.boss ? 1.15f : 1f), e.color, sash, -1, t + 1.3f, enemyWeapon(e), female);
                 if (e.boss) {
                     for (int i = 0; i < 5; i++) {

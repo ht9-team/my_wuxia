@@ -51,8 +51,13 @@ public class DialogScene extends Scene {
         float gap = 14;
         float total = n * bh + (n - 1) * gap;
         float y = Math.max(180, boxTop - 24 - total);
-        for (Ev.Choice ch : ev.choices) {
-            Button b = addButton(44, y, W() - 88, bh, ch.text, ch.action);
+        for (final Ev.Choice ch : ev.choices) {
+            Button b = addButton(44, y, W() - 88, bh, ch.text, () -> {
+                if (game.player != null) {
+                    game.player.choose(ev.title + "｜" + ch.text);
+                }
+                ch.action.run();
+            });
             b.textSize = 30;
             b.enabled = ch.enabled;
             b.color = UI.RED;
@@ -109,6 +114,11 @@ public class DialogScene extends Scene {
         UI.background(c, W(), H(), variant, 0xFF3A322A, 0xFF7A6A52, game.time);
         c.drawRect(0, 0, W(), H(), UI.fill(0x66000000));
         UI.text(c, ev.title, W() / 2, 110, 44, UI.GOLD, Paint.Align.CENTER);
+        if (ev.node) {
+            RectF tagR = new RectF(W() - 210, 150, W() - 24, 196);
+            c.drawRoundRect(tagR, 10, 10, UI.fill(0xCCA3291F));
+            UI.text(c, "关键节点 · 已存档", tagR.centerX(), tagR.bottom - 14, 22, UI.PAPER, Paint.Align.CENTER);
+        }
         float tw = UI.textWidth(ev.title, 44);
         c.drawLine(W() / 2 - tw / 2 - 30, 134, W() / 2 + tw / 2 + 30, 134, UI.stroke(0x88B7862C, 3f));
 

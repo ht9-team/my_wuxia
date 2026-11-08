@@ -5,13 +5,15 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 
 public class Player {
     public static final int MAX_SKILL_LV = 10;
-    public static final int SAVE_VER = 2;
+    public static final int SAVE_VER = 3;
+    private static final int CHOICES_MAX = 80;
     private static final int JOURNAL_MAX = 60;
 
     public String name = "无名";
@@ -48,9 +50,18 @@ public class Player {
     public final int[] explore = new int[GameData.LOCATIONS.length];
     public final HashSet<String> flags = new HashSet<>();
     public final ArrayList<String> journal = new ArrayList<>();
+    /** 关键抉择记录（流程记录）。 */
+    public final ArrayList<String> choices = new ArrayList<>();
+    /** 支线进度：-1 未开启，0..n-1 当前步骤，n 已完成。 */
+    public final int[] side = new int[Story.SIDES.length];
+    public final int[] sideProg = new int[Story.SIDES.length];
     public final ArrayList<Integer> skills = new ArrayList<>();
     public final HashMap<Integer, Integer> skillLv = new HashMap<>();
     public final HashMap<Integer, Integer> skillExp = new HashMap<>();
+
+    public Player() {
+        Arrays.fill(side, -1);
+    }
 
     public static Player create(String name, int sect) {
         GameData.Sect s = GameData.SECTS[sect];
@@ -68,7 +79,11 @@ public class Player {
         p.weapon = s.startWeapon;
         p.items[0] = 3;
         p.items[1] = 2;
-        p.flags.add("v0");
+        p.location = 14 + sect;
+        p.lastTown = 3;
+        p.flags.add("v" + p.location);
+        p.flags.add("v3");
+        p.stage = Story.S_P_TRIAL;
         p.clampVitals();
         return p;
     }
@@ -248,6 +263,13 @@ public class Player {
         flags.add(flag);
     }
 
+    public void choose(String s) {
+        choices.add(s);
+        while (choices.size() > CHOICES_MAX) {
+            choices.remove(0);
+        }
+    }
+
     public void log(String s) {
         journal.add("第" + day + "日  " + s);
         while (journal.size() > JOURNAL_MAX) {
@@ -364,6 +386,13 @@ public class Player {
             jr.put(j);
         }
         o.put("journal", jr);
+        JSONArray ch = new JSONArray();
+        for (String c : choices) {
+            ch.put(c);
+        }
+        o.put("choices", ch);
+        o.put("side", intArray(side));
+        o.put("sideProg", intArray(sideProg));
         JSONArray sk = new JSONArray();
         for (int id : skills) {
             JSONObject so = new JSONObject();
@@ -392,7 +421,7 @@ public class Player {
                 return Story.S_TOMB;
             case 3:
                 p.flags.add("route_alliance");
-                return Story.S_HUASHAN;
+                return Story.S_B_HUASHAN;
             case 4:
                 p.flags.add("route_alliance");
                 return Story.S_XIANGYANG;
@@ -400,6 +429,13 @@ public class Player {
                 return Story.S_POST;
         }
     }
+
+    /** v2 的 13 个章节编号映射到 v3。 */
+    private static final int[] V2_STAGES = {
+            Story.S_BAMBOO, Story.S_HEIFENG, Story.S_LUOYANG, Story.S_TOMB, Story.S_A_DALI, Story.S_A_MIAO,
+            Story.S_B_HUASHAN, Story.S_B_TAIHU, Story.S_XIANGYANG, Story.S_DESERT, Story.S_TIANSHAN,
+            Story.S_FINAL, Story.S_POST,
+    };
 
     public static Player fromJson(JSONObject o) throws JSONException {
         Player p = new Player();
@@ -442,12 +478,17 @@ public class Player {
             p.stage = p.finished ? Story.S_POST : mapOldStage(o.optInt("questStage", 0), p);
             p.progress = 0;
             p.flags.add("v0");
-            p.log("从旧版江湖中归来");
         } else {
             p.baseHp = o.optInt("baseHp", 100);
             p.baseMp = o.optInt("baseMp", 40);
-            p.stage = o.optInt("stage", 0);
-            p.progress = o.optInt("progress", 0);
+            int st = o.optInt("stage", 0);
+            if (ver == 2) {
+                st = st >= 0 && st < V2_STAGES.length ? V2_STAGES[st] : Story.S_BAMBOO;
+                p.progress = 0;
+            } else {
+                p.progress = o.optInt("progress", 0);
+            }
+            p.stage = st;
             p.justice = o.optInt("justice", 0);
             p.affSu = o.optInt("affSu", 0);
             p.affXiao = o.optInt("affXiao", 0);
@@ -476,12 +517,25 @@ public class Player {
                     p.journal.add(jr.getString(i));
                 }
             }
+            JSONArray ch = o.optJSONArray("choices");
+            if (ch != null) {
+                for (int i = 0; i < ch.length(); i++) {
+                    p.choices.add(ch.getString(i));
+                }
+            }
+            if (o.has("side")) {
+                readInts(o.optJSONArray("side"), p.side);
+                readInts(o.optJSONArray("sideProg"), p.sideProg);
+            }
         }
         if (p.stage < 0 || p.stage >= Story.STAGES.length) {
             p.stage = 0;
         }
         if (p.location < 0 || p.location >= GameData.LOCATIONS.length) {
             p.location = 0;
+        }
+        if (ver < 3) {
+            p.log("从旧版江湖中归来（v" + ver + " 存档已升级）");
         }
         if (p.lastTown < 0 || p.lastTown >= GameData.LOCATIONS.length || !GameData.LOCATIONS[p.lastTown].town) {
             p.lastTown = 0;

@@ -53,7 +53,8 @@ public class BattleScene extends Scene {
     private float enemyFade = 1f;
     private String resultText = "";
     private Runnable afterResult;
-    private boolean stageDone = false;
+    private Story.Goal doneGoal;
+    private boolean playerStunned = false;
     private final boolean allyXiao;
     private final boolean allySu;
 
@@ -92,8 +93,8 @@ public class BattleScene extends Scene {
         this.ehp = e.hp;
         addLog((e.boss ? "首领 " : "") + e.name + " 拦住了你的去路！");
         Player pl = game.player;
-        allyXiao = kind == KIND_STORY && e.id == 31 && pl.has("xiao_knows") && pl.affXiao >= 30;
-        allySu = kind == KIND_STORY && (e.id == 31 || e.id == 32) && pl.has("saved_su") && pl.affSu >= 40;
+        allyXiao = kind == KIND_STORY && Story.allyXiao(pl, e.id);
+        allySu = kind == KIND_STORY && Story.allySu(pl, e.id);
         if (allyXiao) {
             addLog("萧寒拔剑而出，与你并肩而立！");
         }
@@ -281,6 +282,13 @@ public class BattleScene extends Scene {
     }
 
     private void startPlayerTurn() {
+        if (playerStunned) {
+            playerStunned = false;
+            addLog("你心神恍惚，这一回合无法出手！");
+            floats.add(new FloatText("失神", heroX(), heroY() - 180, UI.PURPLE, 42, 0));
+            schedule(0.9f, this::enemyTurn);
+            return;
+        }
         state = ST_PLAYER;
         mode = MODE_MAIN;
         buildMenu();
@@ -556,9 +564,19 @@ public class BattleScene extends Scene {
                 floats.add(new FloatText((crit ? "暴击 " : "-") + d, heroX() + (game.rnd.nextFloat() - 0.5f) * 60,
                         heroY() - 160, crit ? UI.GOLD : UI.RED, crit ? 56 : 46, 0.1f));
                 String msg = e.name + act + "，你受到 " + d + " 点伤害。";
-                if (e.poison && special && p.hp > 0 && playerPoison == 0) {
-                    playerPoison = 3;
-                    msg += "你中毒了！";
+                if (special && p.hp > 0) {
+                    if (e.effect == GameData.E_POISON && playerPoison == 0) {
+                        playerPoison = 3;
+                        msg += "你中毒了！";
+                    } else if (e.effect == GameData.E_STUN && !playerStunned && game.rnd.nextFloat() < 0.35f) {
+                        playerStunned = true;
+                        msg += "你心神被摄！";
+                    } else if (e.effect == GameData.E_DRAIN) {
+                        int h = Math.max(1, d * 3 / 10);
+                        ehp = Math.min(emax, ehp + h);
+                        floats.add(new FloatText("+" + h, enemyX(), enemyY() - 120, UI.JADE, 38, 0.3f));
+                        msg += e.name + "吸走了 " + h + " 点气血。";
+                    }
                 }
                 addLog(msg);
             }
@@ -591,7 +609,8 @@ public class BattleScene extends Scene {
         Player p = game.player;
         if (allyXiao && ehp > 0) {
             boolean crit = game.rnd.nextFloat() < 0.12f;
-            int d = calc(30 + p.level * 5, e.def, 1.3f, crit);
+            float pow = p.has("xiao_sword") ? 1.7f : 1.3f;
+            int d = calc(30 + p.level * 5, e.def, pow, crit);
             ehp = Math.max(0, ehp - d);
             enemyShake = 0.3f;
             floats.add(new FloatText("萧寒 -" + d, enemyX() - 40, enemyY() - 90, UI.BLUE, 38, 0.35f));
@@ -652,10 +671,13 @@ public class BattleScene extends Scene {
             }
         }
         if (kind != KIND_STORY) {
-            stageDone = Story.onKill(game, e.id);
-            Story.Stage st = Story.current(p);
-            if (!stageDone && st.type == Story.T_KILL && st.target == e.id && p.location == st.loc) {
-                sb.append("\n任务进度 ").append(p.progress).append("/").append(st.count);
+            doneGoal = Story.onKill(game, e.id);
+            for (Story.Goal goal : Story.goals(p)) {
+                if (goal.type == Story.T_KILL && goal.target == e.id && goal.loc == p.location
+                        && Story.progress(p, goal) < goal.count) {
+                    sb.append("\n").append(goal.side < 0 ? "任务" : "支线").append("进度 ")
+                            .append(Story.progress(p, goal)).append("/").append(goal.count);
+                }
             }
         }
         if (kind != KIND_STORY) {
@@ -675,8 +697,8 @@ public class BattleScene extends Scene {
         game.audio.sfx(ups.isEmpty() ? Audio.SFX_WIN : Audio.SFX_LEVEL);
         game.save();
         afterResult = () -> {
-            if (stageDone) {
-                Story.completeStage(game);
+            if (doneGoal != null) {
+                Story.completeGoal(game, doneGoal);
             } else if (onWin != null) {
                 onWin.run();
             } else {

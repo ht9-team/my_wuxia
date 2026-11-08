@@ -80,6 +80,24 @@ public abstract class Scene {
         }
     }
 
+    /** 取消当前按下的按钮（用于拖动滚动时）。 */
+    protected void cancelPress() {
+        if (pressed != null) {
+            pressed.pressed = false;
+            pressed = null;
+        }
+    }
+
+    protected boolean hitButton(float x, float y) {
+        for (int i = buttons.size() - 1; i >= 0; i--) {
+            Button b = buttons.get(i);
+            if (b.visible && b.enabled && b.contains(x, y)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     protected float W() {
         return game.W;
     }

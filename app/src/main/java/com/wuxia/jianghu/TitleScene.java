@@ -18,7 +18,7 @@ public class TitleScene extends Scene {
         buttons.clear();
         float bw = 400;
         float x = (W() - bw) / 2;
-        float y = H() * 0.56f;
+        float y = H() * 0.50f;
         final int last = game.lastSlot();
         if (game.hasSave(last)) {
             Player peek = game.peek(last);
@@ -33,15 +33,22 @@ public class TitleScene extends Scene {
             if (peek != null) {
                 b.sub = "存档" + (last + 1) + " · " + peek.name + " Lv." + peek.level;
             }
-            y += 120;
+            y += 110;
         }
         if (game.anySave()) {
-            addButton(x, y, bw, 100, "读取存档", () -> game.setScene(new SlotScene(game, false))).sub = "共 " + Game.SLOTS + " 个存档位";
-            y += 120;
+            addButton(x, y, bw, 96, "读取存档", () -> game.setScene(new SlotScene(game, false))).sub = "共 " + Game.SLOTS + " 个存档位 · 可读节点";
+            y += 110;
         }
-        addButton(x, y, bw, 100, "新的江湖", () -> game.setScene(new SlotScene(game, true))).sub = "选择存档位，创建角色";
-        y += 120;
-        Button s = addButton(x, y, bw, 90, "系统设置", () -> game.setScene(new SystemScene(game, true)));
+        addButton(x, y, bw, 96, "新的江湖", () -> game.setScene(new SlotScene(game, true))).sub = "选择存档位与门派";
+        y += 110;
+        Button eg = addButton(x, y, bw, 90, "结局图鉴", () -> {
+            game.player = null;
+            game.setScene(new GuideScene(game, 1));
+        });
+        eg.sub = "十二种结局与达成条件";
+        eg.color = UI.GOLD;
+        y += 104;
+        Button s = addButton(x, y, bw, 86, "系统设置", () -> game.setScene(new SystemScene(game, true)));
         s.color = UI.INK_LIGHT;
     }
 

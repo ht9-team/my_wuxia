@@ -75,11 +75,12 @@ public class CreateScene extends Scene {
         UI.seal(c, s.shortName, W() - 110, py + 74, 96);
         UI.text(c, s.name, 64, py + 70, 46, s.color);
         UI.wrap(c, s.desc, 64, py + 124, W() - 260, 28, UI.INK, 40);
+        UI.text(c, "师门：" + GameData.LOCATIONS[14 + sect].name + " · 师父：" + Sects.MASTER[sect], 64, py + 200, 24, UI.RED);
         String[] k = {"气血", "内力", "攻击", "防御", "身法"};
         int[] v = {s.hp, s.mp, s.atk, s.def, s.agi};
         int[] max = {140, 70, 16, 10, 14};
         for (int i = 0; i < k.length; i++) {
-            float y = py + 216 + i * 32;
+            float y = py + 222 + i * 30;
             UI.text(c, k[i], 64, y + 20, 24, UI.INK_LIGHT);
             UI.bar(c, 140, y, W() - 260, 22, v[i] / (float) max[i], s.color, null);
             UI.text(c, String.valueOf(v[i]), W() - 76, y + 20, 24, UI.INK, Paint.Align.RIGHT);

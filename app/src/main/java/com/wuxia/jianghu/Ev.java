@@ -37,6 +37,8 @@ public final class Ev {
     public final ArrayList<Page> pages = new ArrayList<>();
     public final ArrayList<Choice> choices = new ArrayList<>();
     public Runnable onEnd;
+    /** 是否为关键节点（已自动存档）。 */
+    public boolean node;
 
     public Ev(String title) {
         this.title = title;

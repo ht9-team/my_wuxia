@@ -6,14 +6,21 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Random;
 
 /** 全局游戏状态：当前场景、存档槽、设置、结局收集、声音与飘字提示。 */
 public class Game {
-    public static final int SLOTS = 3;
+    public static final int SLOTS = 20;
+    public static final int MAX_NODES = 40;
     private static final String PREFS = "jianghu";
     private static final String OLD_SAVE = "save_v1";
     private static final String KEY_LAST = "last_slot";
@@ -226,6 +233,108 @@ public class Game {
 
     public void deleteSave(int s) {
         prefs().edit().remove(key(s)).apply();
+        File f = nodeFile(s);
+        if (f.exists() && !f.delete()) {
+            writeNodes(s, new JSONArray());
+        }
+    }
+
+    public int firstFreeSlot() {
+        for (int i = 0; i < SLOTS; i++) {
+            if (!hasSave(i)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    // ---------------- 节点存档 ----------------
+
+    private File nodeFile(int s) {
+        return new File(ctx.getFilesDir(), "nodes_" + s + ".json");
+    }
+
+    public boolean hasNodes(int s) {
+        File f = nodeFile(s);
+        return f.exists() && f.length() > 2;
+    }
+
+    /** 某个存档位的全部节点存档（按时间先后）。 */
+    public JSONArray nodes(int s) {
+        File f = nodeFile(s);
+        if (!f.exists()) {
+            return new JSONArray();
+        }
+        try (FileInputStream in = new FileInputStream(f)) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) > 0) {
+                out.write(buf, 0, n);
+            }
+            return new JSONArray(new String(out.toByteArray(), StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            return new JSONArray();
+        }
+    }
+
+    private void writeNodes(int s, JSONArray arr) {
+        try (FileOutputStream out = new FileOutputStream(nodeFile(s))) {
+            out.write(arr.toString().getBytes(StandardCharsets.UTF_8));
+        } catch (Exception ignored) {
+            // 节点存档失败不影响游戏
+        }
+    }
+
+    /** 关键抉择前自动存档：同一事件只保留最近一次。 */
+    public void recordNode(String eventId, String title) {
+        if (player == null) {
+            return;
+        }
+        try {
+            JSONArray old = nodes(slot);
+            JSONArray arr = new JSONArray();
+            for (int i = 0; i < old.length(); i++) {
+                JSONObject o = old.getJSONObject(i);
+                if (!eventId.equals(o.optString("id"))) {
+                    arr.put(o);
+                }
+            }
+            JSONObject n = new JSONObject();
+            n.put("id", eventId);
+            n.put("title", title);
+            n.put("chapter", Story.current(player).chapter);
+            n.put("day", player.day);
+            n.put("level", player.level);
+            n.put("time", System.currentTimeMillis());
+            n.put("player", player.toJson());
+            arr.put(n);
+            while (arr.length() > MAX_NODES) {
+                arr.remove(0);
+            }
+            writeNodes(slot, arr);
+            save();
+        } catch (Exception ignored) {
+            // ignore
+        }
+    }
+
+    /** 从节点存档重走：读取节点到目标存档位，返回要重播的事件 id；失败返回 null。 */
+    public String loadNode(int fromSlot, int index, int toSlot) {
+        try {
+            JSONArray arr = nodes(fromSlot);
+            JSONObject n = arr.getJSONObject(index);
+            Player p = Player.fromJson(n.getJSONObject("player"));
+            if (toSlot != fromSlot) {
+                writeNodes(toSlot, arr);
+            }
+            player = p;
+            slot = toSlot;
+            save();
+            return n.getString("id");
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     // ---------------- 结局收集 ----------------

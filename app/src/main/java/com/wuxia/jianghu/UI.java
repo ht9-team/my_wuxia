@@ -89,6 +89,28 @@ public final class UI {
         return y;
     }
 
+    /** 按宽度把文本切成多行（逐字换行，适合中文）。 */
+    public static java.util.ArrayList<String> split(String s, float width, float size) {
+        java.util.ArrayList<String> out = new java.util.ArrayList<>();
+        TEXT.setTextSize(size);
+        for (String para : s.split("\n", -1)) {
+            if (para.isEmpty()) {
+                out.add("");
+                continue;
+            }
+            int start = 0;
+            while (start < para.length()) {
+                int n = TEXT.breakText(para, start, para.length(), true, width, null);
+                if (n <= 0) {
+                    n = 1;
+                }
+                out.add(para.substring(start, start + n));
+                start += n;
+            }
+        }
+        return out;
+    }
+
     public static void panel(Canvas c, RectF r, int bg, int border) {
         c.drawRoundRect(r, 16, 16, fill(bg));
         c.drawRoundRect(r, 16, 16, stroke(border, 3f));

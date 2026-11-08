@@ -146,6 +146,7 @@ public final class GameData {
             new Skill(24, "天山折梅手", -1, SK_MULTI, 20, 1.0f, 6, 10, 0, W_FIST, "天下武学皆可化入此手，连绵六击。"),
             new Skill(25, "狂风刀法", -1, SK_MULTI, 18, 1.15f, 4, 9, 0, W_BLADE, "大漠风沙中悟出的刀法，刀势如狂风。"),
             new Skill(26, "碧海潮生曲", -1, SK_STUN, 28, 2.6f, 1, 14, 0, -1, "以内力催动箫声，如潮水般令敌人心神大乱。"),
+            new Skill(27, "寒梅剑法", -1, SK_MULTI, 22, 1.4f, 3, 10, 0, W_SWORD, "萧家祖传剑法，剑意如寒梅傲雪，连绵三击。"),
     };
 
     // ---------------- 物品 ----------------
@@ -292,9 +293,24 @@ public final class GameData {
             med(35, "玄铁", IT_MAT, 0, 150, "铁匠铺强化高阶兵甲所需的材料。"),
             med(36, "九花玉露丸", IT_HP, 600, 200, "以九种奇花炼成，回复 600 点气血。"),
             med(37, "解毒丹", IT_CURE, 100, 30, "解除中毒，并回复 100 点气血。"),
+            weapon(38, "金刚指环", W_FIST, 40, 10, 0, SP_DOUBLE, 0, "少林镇寺之宝，佛门金刚之力凝于指间。"),
+            weapon(39, "真武剑", W_SWORD, 42, 8, 2, SP_PIERCE, 0, "武当镇观之宝，真武大帝的佩剑。"),
+            weapon(40, "青霜剑", W_SWORD, 38, 15, 4, SP_DOUBLE, 0, "峨眉祖师的佩剑，剑光如霜。"),
+            weapon(41, "镇帮神棒", W_STAFF, 42, 4, 6, SP_FROST, 0, "丐帮历代帮主相传的神棒。"),
+            acc(42, "同心紫玉簪", 6, 0, 0, 80, 6, 5, 0, "苏晚晴亲手重新打磨的玉簪，簪上刻着两个小字：同心。"),
+            weapon(43, "七星龙渊", W_SWORD, 55, 10, 2, SP_DRAIN, 0, "老铸剑师以天山陨铁铸成，剑身七星隐现。"),
+            weapon(44, "斩马刀", W_BLADE, 58, 14, 0, SP_PIERCE, 0, "陨铁铸就的长刀，可断奔马。"),
+            weapon(45, "盘龙棍", W_STAFF, 54, 4, 8, SP_DOUBLE, 0, "陨铁包首，龙纹盘绕。"),
+            weapon(46, "天罡拳套", W_FIST, 52, 14, 0, SP_DRAIN, 0, "陨铁锻成的拳套，拳风如雷。"),
+            acc(47, "影阁令牌", 10, 5, 0, 0, 0, 5, 0, "黑铁铸成的令牌，正面一个「影」字。"),
     };
 
     // ---------------- 敌人 ----------------
+    public static final int E_NONE = 0;
+    public static final int E_POISON = 1;
+    public static final int E_STUN = 2;
+    public static final int E_DRAIN = 3;
+
     public static final class Enemy {
         public final int id;
         public final String name;
@@ -306,10 +322,10 @@ public final class GameData {
         public final boolean boss;
         public final int color;
         public final int shape; // 0 人形 1 兽 2 蛇 3 虫 4 蝎
-        public final boolean poison;
+        public final int effect; // E_NONE / E_POISON / E_STUN / E_DRAIN
 
         Enemy(int id, String name, int lv, int hp, int atk, int def, int agi, int exp, int silver,
-              String skill, float skillPower, int drop, float dropRate, boolean boss, int color, int shape, boolean poison) {
+              String skill, float skillPower, int drop, float dropRate, boolean boss, int color, int shape, int effect) {
             this.id = id;
             this.name = name;
             this.lv = lv;
@@ -326,49 +342,88 @@ public final class GameData {
             this.boss = boss;
             this.color = color;
             this.shape = shape;
-            this.poison = poison;
+            this.effect = effect;
         }
     }
 
     public static final Enemy[] ENEMIES = {
-            new Enemy(0, "山贼", 1, 45, 11, 3, 6, 12, 8, "乱刀砍", 1.5f, 0, 0.2f, false, 0xFF5A4632, 0, false),
-            new Enemy(1, "野狼", 1, 38, 12, 2, 10, 10, 2, "撕咬", 1.6f, 12, 0.25f, false, 0xFF6B6B6B, 1, false),
-            new Enemy(2, "毒蛇", 2, 32, 13, 2, 14, 14, 3, "毒牙", 1.6f, 12, 0.3f, false, 0xFF3F6B2F, 2, true),
-            new Enemy(3, "黑风喽啰", 3, 85, 19, 6, 10, 25, 15, "连环刀", 1.6f, 0, 0.25f, false, 0xFF2E2E2E, 0, false),
-            new Enemy(4, "恶犬", 3, 72, 21, 5, 16, 24, 5, "猛扑", 1.7f, 12, 0.2f, false, 0xFF4A3A2A, 1, false),
-            new Enemy(5, "山贼头目", 4, 125, 25, 9, 12, 40, 30, "开山斧", 1.9f, 1, 0.3f, false, 0xFF7A3B22, 0, false),
-            new Enemy(6, "黑风寨主", 5, 460, 34, 12, 14, 160, 200, "黑风刀法", 2.2f, 14, 1f, true, 0xFF141414, 0, false),
-            new Enemy(7, "玉蜂", 6, 110, 34, 9, 28, 48, 5, "蜂针", 1.8f, 1, 0.3f, false, 0xFFC9A227, 3, true),
-            new Enemy(8, "古墓守卫", 7, 240, 42, 16, 16, 62, 25, "玉女剑", 1.8f, 2, 0.3f, false, 0xFF8A8A9A, 0, false),
-            new Enemy(9, "盗墓贼", 6, 170, 38, 12, 20, 52, 60, "飞蝗石", 1.7f, 3, 0.25f, false, 0xFF5B4A3A, 0, false),
-            new Enemy(10, "赤练魔头", 8, 900, 52, 20, 22, 340, 400, "赤练神掌", 2.3f, 11, 1f, true, 0xFF8B1A1A, 0, true),
-            new Enemy(11, "魔教护法", 9, 330, 56, 22, 22, 95, 60, "吸血功", 2.0f, 2, 0.3f, false, 0xFF4B2A5A, 0, false),
-            new Enemy(12, "雪豹", 9, 300, 58, 18, 34, 88, 10, "疾扑", 1.8f, 4, 0.08f, false, 0xFFBFBFBF, 1, false),
-            new Enemy(13, "魔教长老", 12, 480, 76, 30, 26, 150, 90, "天魔掌", 2.0f, 36, 0.3f, false, 0xFF3A1A4A, 0, false),
-            new Enemy(14, "天魔教主", 14, 2600, 92, 36, 36, 1200, 1000, "天魔解体大法", 2.4f, 36, 1f, true, 0xFF6B1E5A, 0, false),
-            new Enemy(15, "武林盟弟子", 3, 90, 20, 7, 12, 28, 20, "两仪剑阵", 1.7f, 0, 0.3f, false, 0xFF4A6A8A, 0, false),
-            new Enemy(16, "鬼影护法", 10, 1100, 62, 24, 34, 420, 380, "鬼影迷踪", 2.3f, 27, 1f, true, 0xFF2A2A3A, 0, false),
-            new Enemy(17, "毒蝎", 7, 160, 44, 18, 18, 58, 6, "尾针", 1.8f, 37, 0.3f, false, 0xFF6B3A1A, 4, true),
-            new Enemy(18, "苗疆蛊师", 8, 230, 50, 14, 22, 72, 40, "金蚕蛊", 2.0f, 37, 0.3f, false, 0xFF3A5A3A, 0, true),
-            new Enemy(19, "五毒老怪", 9, 1050, 58, 20, 26, 450, 420, "五毒神掌", 2.3f, 22, 1f, true, 0xFF2F4A1F, 0, true),
-            new Enemy(20, "水寨喽啰", 5, 130, 30, 9, 14, 36, 22, "分水刺", 1.6f, 0, 0.3f, false, 0xFF2A4A5A, 0, false),
-            new Enemy(21, "水鬼", 6, 150, 36, 10, 26, 46, 18, "溺水拖拽", 1.8f, 1, 0.25f, false, 0xFF1F3A3A, 0, false),
-            new Enemy(22, "水寨龙王", 7, 760, 46, 16, 20, 300, 360, "翻江倒海", 2.2f, 18, 1f, true, 0xFF1A3A5A, 0, false),
-            new Enemy(23, "马贼", 10, 330, 60, 22, 26, 105, 55, "回马枪", 1.9f, 2, 0.3f, false, 0xFF6A4A2A, 0, false),
-            new Enemy(24, "沙蝎", 10, 300, 62, 26, 22, 100, 10, "毒尾", 1.9f, 37, 0.3f, false, 0xFFA07A3A, 4, true),
-            new Enemy(25, "西域刀客", 11, 400, 68, 24, 28, 125, 70, "弯刀斩", 2.0f, 3, 0.3f, false, 0xFF8A5A2A, 0, false),
-            new Enemy(26, "大漠狂刀", 11, 1500, 74, 28, 30, 620, 600, "狂沙刀阵", 2.4f, 23, 1f, true, 0xFF5A3A1A, 0, false),
-            new Enemy(27, "雪狼", 11, 360, 70, 22, 34, 115, 12, "寒牙", 1.9f, 4, 0.06f, false, 0xFFD8D8E0, 1, false),
-            new Enemy(28, "天山弃徒", 12, 450, 74, 28, 28, 135, 80, "天山六阳掌", 2.0f, 36, 0.2f, false, 0xFF5A7A9A, 0, false),
-            new Enemy(29, "冰魄老人", 12, 1800, 80, 32, 32, 800, 700, "冰魄寒光", 2.4f, 24, 1f, true, 0xFFB8C8D8, 0, false),
-            new Enemy(30, "魔教精英", 13, 520, 82, 32, 30, 160, 90, "血刃", 2.0f, 36, 0.25f, false, 0xFF4A1A2A, 0, false),
-            new Enemy(31, "慕容渊", 15, 3000, 98, 40, 40, 1600, 1500, "慕容剑诀", 2.5f, -1, 0f, true, 0xFF3F6B5A, 0, false),
-            new Enemy(32, "萧寒", 13, 1600, 80, 30, 38, 600, 0, "流云剑法", 2.2f, -1, 0f, true, 0xFFD8DEE6, 0, false),
-            new Enemy(33, "蓬莱弟子", 15, 600, 92, 36, 36, 200, 100, "碧涛掌", 2.0f, 36, 0.3f, false, 0xFF2F7A8A, 0, false),
-            new Enemy(34, "东海鲨", 15, 650, 98, 32, 30, 190, 20, "血口獠牙", 2.0f, 35, 0.3f, false, 0xFF4A5A6A, 1, false),
-            new Enemy(35, "剑傀", 16, 720, 102, 44, 28, 220, 60, "万剑归宗", 2.1f, 35, 0.3f, false, 0xFF7A7A6A, 0, false),
-            new Enemy(36, "东海剑仙", 18, 5200, 125, 50, 50, 3000, 3000, "天外飞仙", 2.6f, 25, 1f, true, 0xFFE8E8F0, 0, false),
-            new Enemy(37, "竹林大盗", 2, 160, 15, 4, 10, 55, 60, "竹影刀", 1.8f, 13, 1f, true, 0xFF3A5A2A, 0, false),
+            new Enemy(0, "山贼", 1, 45, 11, 3, 6, 12, 8, "乱刀砍", 1.5f, 0, 0.2f, false, 0xFF5A4632, 0, 0),
+            new Enemy(1, "野狼", 1, 38, 12, 2, 10, 10, 2, "撕咬", 1.6f, 12, 0.25f, false, 0xFF6B6B6B, 1, 0),
+            new Enemy(2, "毒蛇", 2, 32, 13, 2, 14, 14, 3, "毒牙", 1.6f, 12, 0.3f, false, 0xFF3F6B2F, 2, 1),
+            new Enemy(3, "黑风喽啰", 3, 85, 19, 6, 10, 25, 15, "连环刀", 1.6f, 0, 0.25f, false, 0xFF2E2E2E, 0, 0),
+            new Enemy(4, "恶犬", 3, 72, 21, 5, 16, 24, 5, "猛扑", 1.7f, 12, 0.2f, false, 0xFF4A3A2A, 1, 0),
+            new Enemy(5, "山贼头目", 4, 125, 25, 9, 12, 40, 30, "开山斧", 1.9f, 1, 0.3f, false, 0xFF7A3B22, 0, 0),
+            new Enemy(6, "黑风寨主", 5, 460, 34, 12, 14, 160, 200, "黑风刀法", 2.2f, 14, 1f, true, 0xFF141414, 0, 0),
+            new Enemy(7, "玉蜂", 6, 110, 34, 9, 28, 48, 5, "蜂针", 1.8f, 1, 0.3f, false, 0xFFC9A227, 3, 1),
+            new Enemy(8, "古墓守卫", 7, 240, 42, 16, 16, 62, 25, "玉女剑", 1.8f, 2, 0.3f, false, 0xFF8A8A9A, 0, 0),
+            new Enemy(9, "盗墓贼", 6, 170, 38, 12, 20, 52, 60, "飞蝗石", 1.7f, 3, 0.25f, false, 0xFF5B4A3A, 0, 0),
+            new Enemy(10, "赤练魔头", 8, 900, 52, 20, 22, 340, 400, "赤练神掌", 2.3f, 11, 1f, true, 0xFF8B1A1A, 0, 1),
+            new Enemy(11, "魔教护法", 9, 330, 56, 22, 22, 95, 60, "吸血功", 2.0f, 2, 0.3f, false, 0xFF4B2A5A, 0, 3),
+            new Enemy(12, "雪豹", 9, 300, 58, 18, 34, 88, 10, "疾扑", 1.8f, 4, 0.08f, false, 0xFFBFBFBF, 1, 0),
+            new Enemy(13, "魔教长老", 12, 480, 76, 30, 26, 150, 90, "天魔掌", 2.0f, 36, 0.3f, false, 0xFF3A1A4A, 0, 3),
+            new Enemy(14, "天魔教主", 14, 2600, 92, 36, 36, 1200, 1000, "天魔解体大法", 2.4f, 36, 1f, true, 0xFF6B1E5A, 0, 3),
+            new Enemy(15, "武林盟弟子", 3, 90, 20, 7, 12, 28, 20, "两仪剑阵", 1.7f, 0, 0.3f, false, 0xFF4A6A8A, 0, 0),
+            new Enemy(16, "鬼影护法", 10, 1100, 62, 24, 34, 420, 380, "鬼影迷踪", 2.3f, 27, 1f, true, 0xFF2A2A3A, 0, 2),
+            new Enemy(17, "毒蝎", 7, 160, 44, 18, 18, 58, 6, "尾针", 1.8f, 37, 0.3f, false, 0xFF6B3A1A, 4, 1),
+            new Enemy(18, "苗疆蛊师", 8, 230, 50, 14, 22, 72, 40, "金蚕蛊", 2.0f, 37, 0.3f, false, 0xFF3A5A3A, 0, 1),
+            new Enemy(19, "五毒老怪", 9, 1050, 58, 20, 26, 450, 420, "五毒神掌", 2.3f, 22, 1f, true, 0xFF2F4A1F, 0, 1),
+            new Enemy(20, "水寨喽啰", 5, 130, 30, 9, 14, 36, 22, "分水刺", 1.6f, 0, 0.3f, false, 0xFF2A4A5A, 0, 0),
+            new Enemy(21, "水鬼", 6, 150, 36, 10, 26, 46, 18, "溺水拖拽", 1.8f, 1, 0.25f, false, 0xFF1F3A3A, 0, 0),
+            new Enemy(22, "水寨龙王", 7, 760, 46, 16, 20, 300, 360, "翻江倒海", 2.2f, 18, 1f, true, 0xFF1A3A5A, 0, 0),
+            new Enemy(23, "马贼", 10, 330, 60, 22, 26, 105, 55, "回马枪", 1.9f, 2, 0.3f, false, 0xFF6A4A2A, 0, 0),
+            new Enemy(24, "沙蝎", 10, 300, 62, 26, 22, 100, 10, "毒尾", 1.9f, 37, 0.3f, false, 0xFFA07A3A, 4, 1),
+            new Enemy(25, "西域刀客", 11, 400, 68, 24, 28, 125, 70, "弯刀斩", 2.0f, 3, 0.3f, false, 0xFF8A5A2A, 0, 0),
+            new Enemy(26, "大漠狂刀", 11, 1500, 74, 28, 30, 620, 600, "狂沙刀阵", 2.4f, 23, 1f, true, 0xFF5A3A1A, 0, 0),
+            new Enemy(27, "雪狼", 11, 360, 70, 22, 34, 115, 12, "寒牙", 1.9f, 4, 0.06f, false, 0xFFD8D8E0, 1, 0),
+            new Enemy(28, "天山弃徒", 12, 450, 74, 28, 28, 135, 80, "天山六阳掌", 2.0f, 36, 0.2f, false, 0xFF5A7A9A, 0, 0),
+            new Enemy(29, "冰魄老人", 12, 1800, 80, 32, 32, 800, 700, "冰魄寒光", 2.4f, 24, 1f, true, 0xFFB8C8D8, 0, 2),
+            new Enemy(30, "魔教精英", 13, 520, 82, 32, 30, 160, 90, "血刃", 2.0f, 36, 0.25f, false, 0xFF4A1A2A, 0, 0),
+            new Enemy(31, "慕容渊", 15, 3000, 98, 40, 40, 1600, 1500, "慕容剑诀", 2.5f, -1, 0f, true, 0xFF3F6B5A, 0, 2),
+            new Enemy(32, "萧寒", 13, 1600, 80, 30, 38, 600, 0, "流云剑法", 2.2f, -1, 0f, true, 0xFFD8DEE6, 0, 0),
+            new Enemy(33, "蓬莱弟子", 15, 600, 92, 36, 36, 200, 100, "碧涛掌", 2.0f, 36, 0.3f, false, 0xFF2F7A8A, 0, 0),
+            new Enemy(34, "东海鲨", 15, 650, 98, 32, 30, 190, 20, "血口獠牙", 2.0f, 35, 0.3f, false, 0xFF4A5A6A, 1, 0),
+            new Enemy(35, "剑傀", 16, 720, 102, 44, 28, 220, 60, "万剑归宗", 2.1f, 35, 0.3f, false, 0xFF7A7A6A, 0, 0),
+            new Enemy(36, "东海剑仙", 18, 5200, 125, 50, 50, 3000, 3000, "天外飞仙", 2.6f, 25, 1f, true, 0xFFE8E8F0, 0, 2),
+            new Enemy(37, "竹林大盗", 2, 160, 15, 4, 10, 55, 60, "竹影刀", 1.8f, 13, 1f, true, 0xFF3A5A2A, 0, 0),
+            new Enemy(38, "夜行盗贼", 1, 42, 11, 3, 9, 12, 10, "飞刀", 1.5f, 0, 0.2f, false, 0xFF2E2E3A, 0, 0),
+            new Enemy(39, "野熊", 2, 70, 13, 4, 5, 15, 2, "熊掌拍击", 1.7f, 12, 0.3f, false, 0xFF4A3A2A, 1, 0),
+            new Enemy(40, "盗经叛僧·慧空", 3, 190, 17, 7, 9, 80, 60, "大力金刚掌", 1.9f, 30, 1f, true, 0xFF9A6A2A, 0, 0),
+            new Enemy(41, "山魈", 1, 40, 12, 2, 12, 12, 3, "抓挠", 1.6f, 12, 0.3f, false, 0xFF5A4A3A, 1, 0),
+            new Enemy(42, "黑衣剑客", 2, 60, 13, 4, 10, 15, 12, "夺命剑", 1.6f, 0, 0.25f, false, 0xFF1E1E2A, 0, 0),
+            new Enemy(43, "叛徒·玄冥子", 3, 190, 17, 6, 11, 80, 60, "玄冥寒掌", 1.9f, 29, 1f, true, 0xFF3A4A6A, 0, 1),
+            new Enemy(44, "采花贼", 1, 40, 12, 2, 13, 12, 15, "迷魂香", 1.5f, 1, 0.25f, false, 0xFF6A3A4A, 0, 2),
+            new Enemy(45, "金顶猿猴", 2, 62, 13, 3, 14, 15, 2, "飞扑", 1.6f, 12, 0.3f, false, 0xFF8A7A5A, 1, 0),
+            new Enemy(46, "血手人屠", 3, 190, 17, 6, 10, 80, 70, "血手印", 1.9f, 30, 1f, true, 0xFF6A1A1A, 0, 3),
+            new Enemy(47, "净衣派弟子", 1, 44, 11, 3, 8, 12, 12, "棍扫", 1.5f, 0, 0.2f, false, 0xFF8A8A7A, 0, 0),
+            new Enemy(48, "恶丐", 2, 64, 13, 4, 9, 15, 8, "莲花落", 1.6f, 12, 0.3f, false, 0xFF5A4A2A, 0, 0),
+            new Enemy(49, "彭长老", 3, 190, 17, 7, 10, 80, 60, "摄魂术", 1.9f, 32, 1f, true, 0xFF7A6A4A, 0, 2),
+            new Enemy(50, "影阁·铁罗汉", 12, 1900, 80, 44, 26, 820, 600, "金刚不坏", 2.3f, 47, 1f, true, 0xFF8A6A3A, 0, 0),
+            new Enemy(51, "影阁·玄冥二老", 12, 1750, 84, 30, 32, 820, 600, "玄冥神掌", 2.4f, 47, 1f, true, 0xFF2A3A5A, 0, 1),
+            new Enemy(52, "影阁·血观音", 12, 1700, 82, 30, 38, 820, 600, "血影掌", 2.4f, 47, 1f, true, 0xFF8A2A3A, 0, 3),
+            new Enemy(53, "影阁·摄魂使", 12, 1800, 80, 32, 34, 820, 600, "摄魂大法", 2.3f, 47, 1f, true, 0xFF4A3A5A, 0, 2),
+            new Enemy(54, "影阁杀手", 8, 240, 50, 18, 30, 75, 40, "影杀", 2.0f, 37, 0.25f, false, 0xFF1A1A22, 0, 1),
+            new Enemy(55, "影阁死士", 14, 560, 88, 34, 34, 180, 80, "死士绝杀", 2.1f, 36, 0.25f, false, 0xFF15151C, 0, 0),
+            new Enemy(56, "白无常", 9, 1100, 58, 22, 32, 460, 420, "勾魂索", 2.3f, 47, 1f, true, 0xFFE8E8E8, 0, 2),
+            new Enemy(57, "黑无常", 12, 1700, 80, 30, 30, 760, 650, "锁魂链", 2.4f, 47, 1f, true, 0xFF101010, 0, 3),
+            new Enemy(58, "楼兰沙盗", 11, 380, 66, 24, 30, 120, 60, "沙暴刀", 2.0f, 3, 0.3f, false, 0xFF8A6A3A, 0, 0),
+            new Enemy(59, "古城傀儡", 12, 460, 72, 36, 18, 135, 30, "铁臂横扫", 2.0f, 35, 0.2f, false, 0xFF6A6A5A, 0, 0),
+            new Enemy(60, "无量剑派弃徒", 8, 230, 48, 16, 24, 70, 40, "无量剑", 1.9f, 2, 0.3f, false, 0xFF5A6A7A, 0, 0),
+            new Enemy(61, "山魅", 8, 210, 50, 14, 30, 68, 8, "幻影扑", 1.9f, 1, 0.3f, false, 0xFF3A4A3A, 1, 2),
+            new Enemy(62, "武林盟精英", 8, 260, 48, 20, 22, 75, 50, "青锋剑阵", 1.9f, 2, 0.3f, false, 0xFF3A5A7A, 0, 0),
+            new Enemy(63, "影阁主·慧明", 16, 3800, 108, 46, 40, 2500, 2000, "七十二绝技", 2.6f, -1, 0f, true, 0xFF5A3A1A, 0, 2),
+            new Enemy(64, "影阁主·清虚", 16, 3600, 112, 40, 44, 2500, 2000, "玄冥神掌", 2.6f, -1, 0f, true, 0xFF2A2A4A, 0, 1),
+            new Enemy(65, "影阁主·静玄", 16, 3500, 110, 40, 50, 2500, 2000, "血影神功", 2.6f, -1, 0f, true, 0xFF4A1A2A, 0, 3),
+            new Enemy(66, "影阁主·钱不易", 16, 3700, 108, 44, 42, 2500, 2000, "摄魂大法", 2.6f, -1, 0f, true, 0xFF5A4A3A, 0, 2),
+            new Enemy(67, "铁掌门主·雷震", 5, 300, 30, 12, 12, 120, 100, "铁砂掌", 2.0f, -1, 0f, true, 0xFF4A3A2A, 0, 0),
+            new Enemy(68, "点苍剑客·柳随风", 6, 320, 34, 12, 24, 140, 100, "回风拂柳剑", 2.0f, -1, 0f, true, 0xFF3A6A5A, 0, 0),
+            new Enemy(69, "萧寒（切磋）", 7, 380, 36, 14, 26, 180, 0, "流云剑法", 2.1f, -1, 0f, true, 0xFFD8DEE6, 0, 0),
+            new Enemy(70, "天魔教叛徒·赤发鬼", 11, 1400, 74, 26, 30, 600, 500, "赤焰掌", 2.3f, 36, 1f, true, 0xFF8A2A1A, 0, 3),
+            new Enemy(71, "苏晚晴", 8, 700, 46, 18, 34, 300, 0, "紫烟剑法", 2.2f, -1, 0f, true, 0xFF6B3E7A, 0, 0),
+            new Enemy(72, "十八铜人", 7, 900, 46, 30, 14, 300, 0, "铜人阵", 2.0f, -1, 0f, true, 0xFFB08A3A, 0, 0),
+            new Enemy(73, "真武七星阵", 7, 820, 48, 22, 24, 300, 0, "七星剑阵", 2.0f, -1, 0f, true, 0xFF2F5A8A, 0, 0),
+            new Enemy(74, "金顶守山尼", 7, 780, 46, 20, 30, 300, 0, "佛光剑", 2.0f, -1, 0f, true, 0xFF5A7A6A, 0, 0),
+            new Enemy(75, "打狗阵", 7, 860, 48, 22, 22, 300, 0, "打狗阵法", 2.0f, -1, 0f, true, 0xFF8A3A2A, 0, 0),
+            new Enemy(76, "蒙面刺客", 4, 280, 26, 9, 18, 110, 80, "影刃", 1.9f, 37, 1f, true, 0xFF1A1A22, 0, 1),
     };
 
     // ---------------- 地点 ----------------
@@ -412,38 +467,63 @@ public final class GameData {
 
     public static final Location[] LOCATIONS = {
             new Location(0, "临安城", true, "江南繁华之地，酒旗招展，人来人往。初入江湖者多在此落脚。",
-                    0.72f, 0.82f, 1, 0, NONE, -1, false, new int[]{0, 1, 12, 37, 5, 13, 16, 19, 8, 29}, -1,
+                    0.72f, 0.68f, 1, 0, NONE, -1, false, new int[]{0, 1, 12, 37, 5, 13, 16, 19, 8, 29}, -1,
                     new int[]{1, 3, 9, 13}, 0),
             new Location(1, "竹林小径", false, "翠竹万竿，风过如涛。近来常有山贼在此剪径。",
-                    0.92f, 0.66f, 1, 3, new int[]{0, 1, 2}, 37, false, NONE, 16, new int[]{0, 2}, 1),
+                    0.86f, 0.56f, 1, 3, new int[]{0, 1, 2}, 37, false, NONE, 16, new int[]{0, 2}, 1),
             new Location(2, "黑风寨", false, "山势险恶，寨墙高耸，黑风寨的匪徒盘踞于此。",
-                    0.62f, 0.55f, 3, 4, new int[]{3, 4, 5}, 6, false, NONE, -1, new int[]{1, 3}, 2),
+                    0.66f, 0.46f, 3, 4, new int[]{3, 4, 5}, 6, false, NONE, -1, new int[]{1, 3}, 2),
             new Location(3, "洛阳城", true, "九朝古都，牡丹盛开。武林盟在此设有分舵，城中药铺兵器铺货色齐全。",
-                    0.45f, 0.36f, 3, 0, NONE, -1, false, new int[]{0, 1, 2, 3, 37, 6, 14, 17, 20, 9, 30}, -1,
-                    new int[]{0, 2, 4, 5, 10}, 3),
+                    0.40f, 0.28f, 3, 0, NONE, -1, false, new int[]{0, 1, 2, 3, 37, 6, 14, 17, 20, 9, 30}, -1,
+                    new int[]{0, 2, 4, 5, 10, 14, 15, 16, 17}, 3),
             new Location(4, "终南古墓", false, "终南山下古墓幽深，玉蜂嗡嗡，机关重重。",
-                    0.82f, 0.24f, 6, 5, new int[]{7, 8, 9}, 10, false, NONE, 17, new int[]{3, 6}, 4),
+                    0.72f, 0.18f, 6, 5, new int[]{7, 8, 9}, 10, false, NONE, 17, new int[]{3, 6}, 4),
             new Location(5, "思过崖", false, "华山绝顶，崖高万仞，石壁上刻满了前人留下的剑痕。",
-                    0.45f, 0.17f, 8, 5, new int[]{11, 12}, 16, false, NONE, 18, new int[]{3, 6}, 5),
+                    0.40f, 0.14f, 8, 5, new int[]{11, 12}, 16, false, NONE, 18, new int[]{3, 6}, 5),
             new Location(6, "黑木崖", false, "天魔教总坛所在，黑云压顶，杀气腾腾。",
-                    0.62f, 0.04f, 13, 6, new int[]{13, 30, 11}, 14, true, NONE, -1, new int[]{4, 5, 11}, 6),
+                    0.72f, 0.03f, 13, 6, new int[]{13, 30, 11}, 14, true, NONE, -1, new int[]{4, 5, 11, 18}, 6),
             new Location(7, "大理城", true, "苍山洱海之间的南疆古城，风物秀美，药材与奇珍异宝云集。",
-                    0.12f, 0.88f, 6, 0, NONE, -1, false, new int[]{0, 2, 3, 37, 36, 20, 26, 29, 30, 32}, -1,
-                    new int[]{8, 10}, 7),
+                    0.12f, 0.82f, 6, 0, NONE, -1, false, new int[]{0, 2, 3, 37, 36, 20, 26, 29, 30, 32}, -1,
+                    new int[]{8, 10, 19}, 7),
             new Location(8, "苗疆毒林", false, "瘴气弥漫的原始密林，毒虫遍地，苗疆蛊师出没其间。",
-                    0.06f, 0.70f, 8, 5, new int[]{17, 18, 2}, 19, false, NONE, 23, new int[]{7, 10}, 8),
+                    0.08f, 0.62f, 8, 5, new int[]{17, 18, 2}, 19, false, NONE, 23, new int[]{7, 10}, 8),
             new Location(9, "太湖水寨", false, "烟波浩渺的太湖之上，水寨连营，水匪劫掠过往商船。",
-                    0.44f, 0.94f, 5, 4, new int[]{20, 21}, 22, false, NONE, -1, new int[]{0, 10}, 9),
+                    0.56f, 0.86f, 5, 4, new int[]{20, 21}, 22, false, NONE, -1, new int[]{0, 10}, 9),
             new Location(10, "襄阳城", true, "铁打的襄阳，北望中原的雄城。武林盟大军在此集结。",
-                    0.22f, 0.52f, 8, 0, NONE, -1, false, new int[]{2, 3, 36, 37, 4, 7, 15, 21, 26, 27, 32}, -1,
-                    new int[]{3, 7, 8, 9, 12}, 10),
+                    0.24f, 0.46f, 8, 0, NONE, -1, false, new int[]{2, 3, 36, 37, 4, 7, 15, 21, 26, 27, 32}, -1,
+                    new int[]{3, 7, 8, 9, 12, 14, 15, 16, 17}, 10),
             new Location(11, "天山雪岭", false, "终年积雪的天山之巅，寒风如刀，传说有雪莲生于绝壁。",
-                    0.10f, 0.04f, 11, 5, new int[]{27, 28, 12}, 29, false, NONE, 24, new int[]{6, 12}, 11),
+                    0.40f, 0.02f, 11, 5, new int[]{27, 28, 12}, 29, false, NONE, 24, new int[]{6, 12}, 11),
             new Location(12, "大漠孤城", false, "玉门关外的废弃古城，黄沙漫天，马贼与西域刀客横行。",
-                    0.10f, 0.22f, 10, 5, new int[]{23, 24, 25}, 26, false, NONE, 25, new int[]{10, 11}, 12),
+                    0.08f, 0.18f, 10, 5, new int[]{23, 24, 25}, 26, false, NONE, 25, new int[]{10, 11, 20}, 12),
             new Location(13, "蓬莱仙岛", false, "东海深处的仙岛，云雾缭绕，传说岛上隐居着一位剑仙。",
-                    0.90f, 0.42f, 15, 6, new int[]{33, 34, 35}, 36, false, NONE, 26, new int[]{0}, 13),
+                    0.92f, 0.36f, 15, 6, new int[]{33, 34, 35}, 36, false, NONE, 26, new int[]{0}, 13),
+            new Location(14, "少室山", false, "嵩山少室山，千年古刹掩映在松柏之间，晨钟暮鼓，梵音阵阵。",
+                    0.08f, 0.32f, 1, 3, new int[]{38, 39}, 40, false, NONE, -1, new int[]{3, 10}, 14),
+            new Location(15, "武当山", false, "武当七十二峰朝大顶，紫霄宫云雾缭绕，真武道场庄严肃穆。",
+                    0.08f, 0.32f, 1, 3, new int[]{41, 42}, 43, false, NONE, -1, new int[]{3, 10}, 15),
+            new Location(16, "峨眉金顶", false, "峨眉山高出五岳，金顶之上云海翻腾，佛光隐现。",
+                    0.08f, 0.32f, 1, 3, new int[]{44, 45}, 46, false, NONE, -1, new int[]{3, 10}, 16),
+            new Location(17, "君山总舵", false, "洞庭湖中的君山，丐帮总舵所在，竹林深处时有莲花落的歌声。",
+                    0.08f, 0.32f, 1, 3, new int[]{47, 48}, 49, false, NONE, -1, new int[]{3, 10}, 17),
+            new Location(18, "归墟", false, "黑木崖后的万丈深渊之下，影阁总坛隐于地脉之中，终年不见天日。",
+                    0.92f, 0.10f, 15, 4, new int[]{55, 54}, -1, true, NONE, -1, new int[]{6}, 18),
+            new Location(19, "无量山", false, "大理以北的无量山，山中玉壁剑影，传说藏着一个神秘组织的据点。",
+                    0.40f, 0.70f, 8, 4, new int[]{60, 61, 54}, 56, false, NONE, -1, new int[]{7}, 19),
+            new Location(20, "楼兰古城", false, "黄沙掩埋千年的楼兰古城，残垣断壁之间，偶有黑影出没。",
+                    0.08f, 0.06f, 11, 5, new int[]{58, 59, 54}, 57, false, NONE, -1, new int[]{12}, 20),
     };
+
+    /** 师门四处只显示自己门派的那一处；归墟在隐藏终章开启后才会出现。 */
+    public static boolean visible(Player p, int id) {
+        if (id >= 14 && id <= 17) {
+            return id == 14 + p.sect;
+        }
+        if (id == 18) {
+            return p.stage >= Story.S_SHADOW || p.has("v18");
+        }
+        return true;
+    }
 
     public static boolean linked(int a, int b) {
         for (int k : LOCATIONS[a].links) {
